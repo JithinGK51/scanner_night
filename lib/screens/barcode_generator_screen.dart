@@ -28,9 +28,9 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
   final HistoryService _historyService = HistoryService();
 
   final List<Map<String, String>> _barcodeFormats = [
-    {'name': 'EAN-13', 'hint': '13 digits required'},
-    {'name': 'EAN-8', 'hint': '8 digits required'},
-    {'name': 'UPC-A', 'hint': '12 digits required'},
+    {'name': 'EAN-13', 'hint': '12 or 13 digits (checksum auto-calculated)'},
+    {'name': 'EAN-8', 'hint': '7 or 8 digits (checksum auto-calculated)'},
+    {'name': 'UPC-A', 'hint': '11 or 12 digits (checksum auto-calculated)'},
     {'name': 'UPC-E', 'hint': '6-8 digits required'},
     {'name': 'Code-128', 'hint': 'Alphanumeric characters'},
     {'name': 'Code-39', 'hint': 'Alphanumeric characters'},
@@ -53,18 +53,103 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
     return format['hint'] ?? 'Enter barcode data';
   }
 
-  bool _validateInput(String input) {
+  // Calculate EAN-13 checksum
+  int _calculateEAN13Checksum(String digits) {
+    if (digits.length != 12) return -1;
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      int digit = int.parse(digits[i]);
+      sum += (i % 2 == 0) ? digit : digit * 3;
+    }
+    return (10 - (sum % 10)) % 10;
+  }
+
+  // Calculate EAN-8 checksum
+  int _calculateEAN8Checksum(String digits) {
+    if (digits.length != 7) return -1;
+    int sum = 0;
+    for (int i = 0; i < 7; i++) {
+      int digit = int.parse(digits[i]);
+      sum += (i % 2 == 0) ? digit * 3 : digit;
+    }
+    return (10 - (sum % 10)) % 10;
+  }
+
+  // Calculate UPC-A checksum
+  int _calculateUPCChecksum(String digits) {
+    if (digits.length != 11) return -1;
+    int sum = 0;
+    for (int i = 0; i < 11; i++) {
+      int digit = int.parse(digits[i]);
+      sum += (i % 2 == 0) ? digit * 3 : digit;
+    }
+    return (10 - (sum % 10)) % 10;
+  }
+
+  String _fixChecksum(String input) {
+    if (!RegExp(r'^\d+$').hasMatch(input)) return input;
+
     switch (_selectedFormat) {
       case 'EAN-13':
-        return input.length == 13 && RegExp(r'^\d+$').hasMatch(input);
+        if (input.length == 12) {
+          // Auto-calculate checksum
+          int checksum = _calculateEAN13Checksum(input);
+          return '$input$checksum';
+        } else if (input.length == 13) {
+          // Fix existing checksum
+          String base = input.substring(0, 12);
+          int correctChecksum = _calculateEAN13Checksum(base);
+          return '$base$correctChecksum';
+        }
+        break;
       case 'EAN-8':
-        return input.length == 8 && RegExp(r'^\d+$').hasMatch(input);
+        if (input.length == 7) {
+          int checksum = _calculateEAN8Checksum(input);
+          return '$input$checksum';
+        } else if (input.length == 8) {
+          String base = input.substring(0, 7);
+          int correctChecksum = _calculateEAN8Checksum(base);
+          return '$base$correctChecksum';
+        }
+        break;
       case 'UPC-A':
-        return input.length == 12 && RegExp(r'^\d+$').hasMatch(input);
+        if (input.length == 11) {
+          int checksum = _calculateUPCChecksum(input);
+          return '$input$checksum';
+        } else if (input.length == 12) {
+          String base = input.substring(0, 11);
+          int correctChecksum = _calculateUPCChecksum(base);
+          return '$base$correctChecksum';
+        }
+        break;
+    }
+    return input;
+  }
+
+  bool _validateInput(String input) {
+    if (!RegExp(r'^\d+$').hasMatch(input)) {
+      if (_selectedFormat == 'Code-128' || 
+          _selectedFormat == 'Code-39' || 
+          _selectedFormat == 'Code-93') {
+        return input.isNotEmpty;
+      }
+      if (_selectedFormat == 'Codabar') {
+        return input.isNotEmpty && RegExp(r'^[0-9A-D\-\$:/.+]+$').hasMatch(input);
+      }
+      return false;
+    }
+
+    switch (_selectedFormat) {
+      case 'EAN-13':
+        return input.length == 12 || input.length == 13;
+      case 'EAN-8':
+        return input.length == 7 || input.length == 8;
+      case 'UPC-A':
+        return input.length == 11 || input.length == 12;
       case 'UPC-E':
-        return input.length >= 6 && input.length <= 8 && RegExp(r'^\d+$').hasMatch(input);
+        return input.length >= 6 && input.length <= 8;
       case 'ITF-14':
-        return input.length == 14 && RegExp(r'^\d+$').hasMatch(input);
+        return input.length == 14;
       case 'Code-128':
       case 'Code-39':
       case 'Code-93':
@@ -112,7 +197,9 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
       return;
     }
 
-    if (!_validateInput(_barcodeController.text.trim())) {
+    String input = _barcodeController.text.trim();
+    
+    if (!_validateInput(input)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Invalid input for $_selectedFormat. ${_getHintText()}'),
@@ -122,9 +209,23 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
       return;
     }
 
+    // Auto-fix checksum for formats that require it
+    String processedData = _fixChecksum(input);
+    
+    // Update controller if checksum was fixed
+    if (processedData != input && RegExp(r'^\d+$').hasMatch(processedData)) {
+      _barcodeController.text = processedData;
+      input = processedData;
+    }
+
     setState(() {
       _isGenerating = true;
-      _generatedData = _barcodeController.text.trim();
+    });
+
+    // Set the data and let the widget handle validation
+    setState(() {
+      _generatedData = input;
+      _isGenerating = false;
     });
 
     // Add to history
@@ -137,14 +238,6 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
       qrCodeType: _selectedFormat,
     );
     await _historyService.addHistoryItem(historyItem);
-
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _isGenerating = false;
-        });
-      }
-    });
   }
 
   Future<void> _copyToClipboard() async {
@@ -483,66 +576,134 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
             // Generated Barcode Display
             if (_generatedData != null) ...[
               const SizedBox(height: 30),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    RepaintBoundary(
-                      key: _barcodeKey,
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: BarcodeWidget(
-                          barcode: _getBarcode(),
-                          data: _generatedData!,
-                          width: 250,
-                          height: 120,
-                          color: Colors.black,
-                          backgroundColor: Colors.white,
-                        ),
+              Builder(
+                builder: (context) {
+                  try {
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Action Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildActionButton(
-                          icon: Icons.copy,
-                          label: 'Copy',
-                          onTap: _copyToClipboard,
-                          color: Colors.blue,
-                        ),
-                        _buildActionButton(
-                          icon: Icons.save_alt,
-                          label: 'Save',
-                          onTap: _saveBarcode,
-                          color: Colors.green,
-                        ),
-                        _buildActionButton(
-                          icon: Icons.share,
-                          label: 'Share',
-                          onTap: _shareBarcode,
-                          color: Colors.orange,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      child: Column(
+                        children: [
+                          RepaintBoundary(
+                            key: _barcodeKey,
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: BarcodeWidget(
+                                barcode: _getBarcode(),
+                                data: _generatedData!,
+                                width: 250,
+                                height: 120,
+                                color: Colors.black,
+                                backgroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Action Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildActionButton(
+                                icon: Icons.copy,
+                                label: 'Copy',
+                                onTap: _copyToClipboard,
+                                color: Colors.blue,
+                              ),
+                              _buildActionButton(
+                                icon: Icons.save_alt,
+                                label: 'Save',
+                                onTap: _saveBarcode,
+                                color: Colors.green,
+                              ),
+                              _buildActionButton(
+                                icon: Icons.share,
+                                label: 'Share',
+                                onTap: _shareBarcode,
+                                color: Colors.orange,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  } catch (e) {
+                    // Handle barcode encoding errors
+                    String errorMessage = e.toString();
+                    String displayMessage = 'Invalid barcode data';
+                    
+                    if (errorMessage.contains('checksum')) {
+                      final checksumMatch = RegExp(r"should be '(\d)'").firstMatch(errorMessage);
+                      if (checksumMatch != null && _generatedData != null && _generatedData!.length == 13) {
+                        String corrected = _generatedData!.substring(0, 12) + checksumMatch.group(1)!;
+                        _barcodeController.text = corrected;
+                        displayMessage = 'Checksum error. Corrected value: $corrected';
+                      } else {
+                        displayMessage = 'Invalid checksum. ${_getHintText()}';
+                      }
+                    } else if (errorMessage.contains('Unable to encode')) {
+                      displayMessage = errorMessage.split('Unable to encode')[1].split(',')[0].trim();
+                    }
+                    
+                    // Show error after a delay to avoid build errors
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(displayMessage),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 4),
+                            action: SnackBarAction(
+                              label: 'OK',
+                              textColor: Colors.white,
+                              onPressed: () {},
+                            ),
+                          ),
+                        );
+                        setState(() {
+                          _generatedData = null;
+                        });
+                      }
+                    });
+                    
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.red.shade300),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red, size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            displayMessage,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                },
               ),
             ],
           ],

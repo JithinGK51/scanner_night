@@ -379,12 +379,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildBottomButton(
-                        Icons.keyboard,
-                        Colors.black.withOpacity(0.7),
-                        Colors.white,
-                        () => _showManualInputDialog(),
-                      ),
-                      _buildBottomButton(
                         Icons.image,
                         Colors.black.withOpacity(0.7),
                         Colors.white,
@@ -510,29 +504,6 @@ class _ScannerScreenState extends State<ScannerScreen>
             spreadRadius: 5,
           ),
         ],
-      ),
-      child: Center(
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.lightBlue.shade300,
-              width: 3,
-            ),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF87CEEB)),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
