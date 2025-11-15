@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
+import '../services/settings_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -14,12 +15,10 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen>
     with SingleTickerProviderStateMixin {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-  );
-  
   final HistoryService _historyService = HistoryService();
+  final SettingsService _settingsService = SettingsService();
+  MobileScannerController? _controller;
+  
   bool _flashOn = false;
   bool _isFrontCamera = false;
   bool _isScanning = false;
@@ -28,11 +27,40 @@ class _ScannerScreenState extends State<ScannerScreen>
   AnimationController? _animationController;
   Animation<double>? _pulseAnimation;
   Animation<double>? _scaleAnimation;
+  
+  bool _continuousScan = false;
+  bool _beepOnScan = true;
+  bool _vibrateOnScan = true;
+  bool _autoCopy = false;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final useFrontCamera = await _settingsService.getUseFrontCamera();
+    final continuousScan = await _settingsService.getContinuousScan();
+    final beepOnScan = await _settingsService.getBeepOnScan();
+    final vibrateOnScan = await _settingsService.getVibrateOnScan();
+    final autoCopy = await _settingsService.getAutoCopy();
+
+    _controller = MobileScannerController(
+      detectionSpeed: continuousScan 
+          ? DetectionSpeed.noDuplicates 
+          : DetectionSpeed.noDuplicates,
+      facing: useFrontCamera ? CameraFacing.front : CameraFacing.back,
+    );
+
+    setState(() {
+      _isFrontCamera = useFrontCamera;
+      _continuousScan = continuousScan;
+      _beepOnScan = beepOnScan;
+      _vibrateOnScan = vibrateOnScan;
+      _autoCopy = autoCopy;
+    });
   }
 
   void _initializeAnimations() {
@@ -59,12 +87,12 @@ class _ScannerScreenState extends State<ScannerScreen>
   @override
   void dispose() {
     _animationController?.dispose();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   Future<void> _handleBarcode(BarcodeCapture capture) async {
-    if (_isProcessing) return;
+    if (_isProcessing && !_continuousScan) return;
 
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -72,8 +100,8 @@ class _ScannerScreenState extends State<ScannerScreen>
     final barcode = barcodes.first;
     if (barcode.rawValue == null) return;
 
-    // Prevent duplicate scans
-    if (_lastScannedCode == barcode.rawValue) return;
+    // Prevent duplicate scans if not continuous
+    if (!_continuousScan && _lastScannedCode == barcode.rawValue) return;
     _lastScannedCode = barcode.rawValue;
 
     setState(() {
@@ -81,8 +109,20 @@ class _ScannerScreenState extends State<ScannerScreen>
       _isScanning = true;
     });
 
-    // Vibrate on scan
-    HapticFeedback.mediumImpact();
+    // Vibrate on scan (if enabled)
+    if (_vibrateOnScan) {
+      HapticFeedback.mediumImpact();
+    }
+
+    // Beep on scan (if enabled) - using system sound
+    if (_beepOnScan) {
+      SystemSound.play(SystemSoundType.alert);
+    }
+
+    // Auto copy to clipboard (if enabled)
+    if (_autoCopy) {
+      await Clipboard.setData(ClipboardData(text: barcode.rawValue!));
+    }
 
     // Trigger success animation
     _animationController?.forward(from: 0.0);
@@ -102,15 +142,28 @@ class _ScannerScreenState extends State<ScannerScreen>
       _showScanResult(barcode.rawValue!);
     }
 
-    // Reset after delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _isScanning = false;
-        });
-      }
-    });
+    // Reset after delay (only if not continuous scan)
+    if (!_continuousScan) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _isScanning = false;
+            _lastScannedCode = null; // Allow rescanning after delay
+          });
+        }
+      });
+    } else {
+      // For continuous scan, reset immediately
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _isScanning = false;
+          });
+        }
+      });
+    }
   }
 
   String _detectCategory(String data) {
@@ -228,13 +281,15 @@ class _ScannerScreenState extends State<ScannerScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Full screen camera preview
-          SizedBox.expand(
-            child: MobileScanner(
-              controller: _controller,
-              onDetect: _handleBarcode,
-            ),
-          ),
+                  // Full screen camera preview
+                  _controller != null
+                      ? SizedBox.expand(
+                          child: MobileScanner(
+                            controller: _controller!,
+                            onDetect: _handleBarcode,
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
           // Dark overlay with hole for scanning frame - full screen
           SizedBox.expand(
             child: CustomPaint(
@@ -323,16 +378,17 @@ class _ScannerScreenState extends State<ScannerScreen>
                     icon: _flashOn ? Icons.flash_on : Icons.flash_off,
                     onTap: () {
                       setState(() => _flashOn = !_flashOn);
-                      _controller.toggleTorch();
+                      _controller?.toggleTorch();
                     },
                   ),
-                  _buildTopControlButton(
-                    icon: Icons.cameraswitch,
-                    onTap: () {
-                      setState(() => _isFrontCamera = !_isFrontCamera);
-                      _controller.switchCamera();
-                    },
-                  ),
+                          _buildTopControlButton(
+                            icon: Icons.cameraswitch,
+                            onTap: () async {
+                              setState(() => _isFrontCamera = !_isFrontCamera);
+                              _controller?.switchCamera();
+                              await _settingsService.setUseFrontCamera(_isFrontCamera);
+                            },
+                          ),
                 ],
               ),
             ),
@@ -360,7 +416,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               Colors.black,
               () {
                 setState(() => _flashOn = !_flashOn);
-                _controller.toggleTorch();
+                _controller?.toggleTorch();
               },
             ),
           ),
@@ -378,12 +434,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildBottomButton(
-                        Icons.keyboard,
-                        Colors.black.withOpacity(0.7),
-                        Colors.white,
-                        () => _showManualInputDialog(),
-                      ),
                       _buildBottomButton(
                         Icons.image,
                         Colors.black.withOpacity(0.7),
@@ -510,29 +560,6 @@ class _ScannerScreenState extends State<ScannerScreen>
             spreadRadius: 5,
           ),
         ],
-      ),
-      child: Center(
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.lightBlue.shade300,
-              width: 3,
-            ),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF87CEEB)),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

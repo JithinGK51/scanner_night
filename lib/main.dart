@@ -5,6 +5,7 @@ import 'screens/qr_generator_screen.dart';
 import 'screens/barcode_generator_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/settings_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,8 +18,46 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final SettingsService _settingsService = SettingsService();
+  String _themeMode = 'system';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemeMode();
+  }
+
+  Future<void> _loadThemeMode() async {
+    final themeMode = await _settingsService.getThemeMode();
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
+
+  void updateTheme(String themeMode) {
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
+
+  ThemeMode get _themeModeEnum {
+    switch (_themeMode) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,14 +68,27 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        brightness: Brightness.light,
       ),
-      home: const MainScreen(),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.black,
+        brightness: Brightness.dark,
+      ),
+      themeMode: _themeModeEnum,
+      home: MainScreen(updateThemeCallback: updateTheme),
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final Function(String)? updateThemeCallback;
+  
+  const MainScreen({super.key, this.updateThemeCallback});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -45,12 +97,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
+  List<Widget> get _screens => [
     const ScannerScreen(),
     const QRGeneratorScreen(),
     const HistoryScreen(),
     const BarcodeGeneratorScreen(),
-    const SettingsScreen(),
+    SettingsScreen(updateThemeCallback: widget.updateThemeCallback),
   ];
 
   @override
