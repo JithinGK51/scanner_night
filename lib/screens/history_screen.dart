@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
+import '../services/code_action_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -91,10 +92,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Item deleted'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Text('Item deleted'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -105,10 +106,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await Clipboard.setData(ClipboardData(text: item.data));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copied to clipboard'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: const Text('Copied to clipboard'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -139,10 +140,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All history cleared'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Text('All history cleared'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -210,17 +211,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+              // Smart action buttons based on code type
+              _buildSmartActionButtons(item),
+              const SizedBox(height: 12),
+              // Standard action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildDetailActionButton(
-                    icon: Icons.copy,
-                    label: 'Copy',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _copyToClipboard(item);
-                    },
-                  ),
                   _buildDetailActionButton(
                     icon: item.isFavorite ? Icons.star : Icons.star_border,
                     label: item.isFavorite ? 'Unfavorite' : 'Favorite',
@@ -247,6 +244,128 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildSmartActionButtons(HistoryItem item) {
+    final category = CodeActionService.detectCategory(item.data);
+    final actions = CodeActionService.getAvailableActions(item.data, category);
+    
+    // Filter out copy, share, and save actions for the main buttons
+    final smartActions = actions.where((action) => 
+      action.type != ActionType.copy && 
+      action.type != ActionType.share &&
+      action.type != ActionType.save
+    ).toList();
+    
+    // Always include copy
+    smartActions.add(CodeAction(
+      type: ActionType.copy,
+      label: 'Copy',
+      icon: 'content_copy',
+    ));
+
+    if (smartActions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: smartActions.map((action) {
+        return _buildSmartActionButton(action, item);
+      }).toList(),
+    );
+  }
+
+  Widget _buildSmartActionButton(CodeAction action, HistoryItem item) {
+    IconData iconData;
+    Color buttonColor;
+
+    switch (action.type) {
+      case ActionType.open:
+        iconData = Icons.open_in_browser;
+        buttonColor = Colors.blue;
+        break;
+      case ActionType.email:
+        iconData = Icons.email;
+        buttonColor = Colors.red;
+        break;
+      case ActionType.call:
+        iconData = Icons.call;
+        buttonColor = Colors.green;
+        break;
+      case ActionType.message:
+        iconData = Icons.message;
+        buttonColor = Colors.orange;
+        break;
+      case ActionType.pay:
+        iconData = Icons.payment;
+        buttonColor = Colors.purple;
+        break;
+      case ActionType.connect:
+        iconData = Icons.wifi;
+        buttonColor = Colors.indigo;
+        break;
+      case ActionType.copy:
+        iconData = Icons.copy;
+        buttonColor = Theme.of(context).colorScheme.primary;
+        break;
+      default:
+        iconData = Icons.more_horiz;
+        buttonColor = Colors.grey;
+    }
+
+    return ElevatedButton.icon(
+      onPressed: () async {
+        if (action.type == ActionType.copy) {
+          Navigator.pop(context);
+          _copyToClipboard(item);
+        } else {
+          // Show loading indicator
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          
+          final success = await CodeActionService.executeAction(action, item.data);
+          
+          // Close loading dialog
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  success
+                      ? '${action.label} executed successfully'
+                      : 'Failed to ${action.label.toLowerCase()}. Please check if the app is installed or try again.',
+                ),
+                backgroundColor: success
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.error,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      },
+      icon: Icon(iconData, size: 18),
+      label: Text(action.label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+    );
+  }
+
   Widget _buildDetailActionButton({
     required IconData icon,
     required String label,
@@ -258,13 +377,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color ?? Colors.blue, size: 28),
+          Icon(icon, color: color ?? Theme.of(context).colorScheme.primary, size: 28),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
               fontSize: 12,
-              color: color ?? Colors.blue,
+              color: color ?? Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
@@ -414,7 +533,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.blue : Colors.white,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white,
             borderRadius: BorderRadius.circular(8),
             border: isSelected ? null : Border.all(color: Colors.black26),
           ),
