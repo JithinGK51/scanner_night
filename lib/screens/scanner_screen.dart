@@ -608,6 +608,106 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
   }
 
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (image == null) return;
+
+      // Show loading indicator
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      // Use mobile_scanner to scan the image
+      if (_controller != null) {
+        try {
+          final file = File(image.path);
+          final result = await _controller!.analyzeImage(file.path);
+          
+          // Close loading dialog
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          
+          if (result != null && result.barcodes.isNotEmpty) {
+            final barcode = result.barcodes.first;
+            if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+              await _processScannedCode(barcode.rawValue!);
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No code found in image'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No code found in image'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          // Close loading dialog if still open
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error scanning image: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _processScannedCode(String data) async {
+    // Add to history
+    final historyItem = HistoryItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      data: data,
+      type: 'Scanned',
+      category: _detectCategory(data),
+      timestamp: DateTime.now(),
+    );
+    await _historyService.addHistoryItem(historyItem);
+
+    // Show result dialog
+    if (mounted) {
+      _showScanResult(data);
+    }
+  }
+
   Widget _buildTopControlButton({required IconData icon, required VoidCallback onTap}) {
     return Container(
       width: 48,
