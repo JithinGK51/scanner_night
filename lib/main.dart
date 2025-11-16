@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'screens/scanner_screen.dart';
 import 'screens/qr_generator_screen.dart';
 import 'screens/barcode_generator_screen.dart';
@@ -95,10 +96,37 @@ class _MyAppState extends State<MyApp> {
         primaryColor: _currentTheme.primaryColor,
       ),
       themeMode: _themeModeEnum,
-      home: MainScreen(
-        updateThemeCallback: updateTheme,
-        updateColorThemeCallback: updateColorTheme,
-        currentTheme: _currentTheme,
+      home: Builder(
+        builder: (context) {
+          try {
+            return MainScreen(
+              updateThemeCallback: updateTheme,
+              updateColorThemeCallback: updateColorTheme,
+              currentTheme: _currentTheme,
+            );
+          } catch (e) {
+            debugPrint('Error building MainScreen: $e');
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error loading app: $e'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {});
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -147,151 +175,73 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade900 : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+    try {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final primaryColor = widget.currentTheme.primaryColor;
+      final backgroundColor = isDark ? Colors.grey.shade900 : Colors.white;
+      
+      return ConvexAppBar(
+        style: TabStyle.reactCircle,
+        items: const [
+          TabItem(icon: Icons.qr_code_scanner, title: 'Scan'),
+          TabItem(icon: Icons.qr_code_2, title: 'QR'),
+          TabItem(icon: Icons.history, title: 'History'),
+          TabItem(icon: Icons.barcode_reader, title: 'Barcode'),
+          TabItem(icon: Icons.settings, title: 'Settings'),
+        ],
+        initialActiveIndex: _currentIndex,
+        onTap: (int index) {
+          if (mounted && index >= 0 && index < _screens.length) {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
+        },
+        backgroundColor: backgroundColor,
+        color: isDark ? Colors.grey.shade600 : Colors.grey,
+        activeColor: primaryColor,
+        curveSize: 80,
+        height: 65,
+        top: -25,
+        elevation: 4,
+      );
+    } catch (e) {
+      debugPrint('ConvexAppBar error: $e');
+      // Fallback to simple bottom navigation if ConvexAppBar fails
+      return BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (int index) {
+          if (mounted && index >= 0 && index < _screens.length) {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: widget.currentTheme.primaryColor,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_2),
+            label: 'QR',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'History',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.barcode_reader),
+            label: 'Barcode',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.qr_code_scanner, 'QR', 0),
-              _buildNavItem(Icons.qr_code_2, 'QR', 1),
-              _buildNavItem(Icons.history, 'History', 2),
-              _buildNavItem(Icons.barcode_reader, 'Barcode', 3),
-              _buildNavItem(Icons.settings, 'Settings', 4),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final bool isSelected = _currentIndex == index;
-    final bool isSpecial = index == 0 || index == 1 || index == 2 || index == 3; // Scan, QR, History, Barcode
-    final bool isSettings = index == 4;
-    
-    // Use theme colors
-    final Color highlightColor = widget.currentTheme.primaryColor;
-
-    if (isSpecial && isSelected) {
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _currentIndex = index),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: highlightColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: highlightColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: highlightColor,
-                ),
-              ),
-            ],
-          ),
-        ),
       );
     }
-
-    if (isSettings && isSelected) {
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _currentIndex = index),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: highlightColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: highlightColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: highlightColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _currentIndex = index),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? highlightColor : Colors.grey,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? highlightColor : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
