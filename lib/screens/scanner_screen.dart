@@ -199,7 +199,7 @@ class _ScannerScreenState extends State<ScannerScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 28),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text(
@@ -237,16 +237,16 @@ class _ScannerScreenState extends State<ScannerScreen>
                     Clipboard.setData(ClipboardData(text: data));
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Copied to clipboard'),
-                        backgroundColor: Colors.green,
+                      SnackBar(
+                        content: const Text('Copied to clipboard'),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                       ),
                     );
                   },
                   icon: const Icon(Icons.copy),
                   label: const Text('Copy'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -310,7 +310,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               height: scanningFrameSize,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: _isScanning ? Colors.green : Colors.grey.shade300,
+                  color: _isScanning ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
                   width: _isScanning ? 3 : 2,
                 ),
                 borderRadius: BorderRadius.circular(20),
@@ -335,11 +335,11 @@ class _ScannerScreenState extends State<ScannerScreen>
                                     width: _isScanning ? 16 : 8,
                                     height: _isScanning ? 16 : 8,
                                     decoration: BoxDecoration(
-                                      color: _isScanning ? Colors.green : Colors.blue,
+                                      color: _isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary,
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: (_isScanning ? Colors.green : Colors.blue)
+                                          color: (_isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary)
                                               .withOpacity(0.6),
                                           blurRadius: _isScanning ? 20 : 10,
                                           spreadRadius: _isScanning ? 5 : 2,
@@ -353,8 +353,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                           : Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.blue,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.secondary,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -551,11 +551,11 @@ class _ScannerScreenState extends State<ScannerScreen>
       width: 72,
       height: 72,
       decoration: BoxDecoration(
-        color: Colors.blue,
+        color: Theme.of(context).colorScheme.primary,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
             blurRadius: 20,
             spreadRadius: 5,
           ),

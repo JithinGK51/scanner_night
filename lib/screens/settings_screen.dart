@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/settings_service.dart';
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Function(String)? updateThemeCallback;
+  final Function(String)? updateColorThemeCallback;
+  final AppTheme currentTheme;
   
-  const SettingsScreen({super.key, this.updateThemeCallback});
+  const SettingsScreen({
+    super.key,
+    this.updateThemeCallback,
+    this.updateColorThemeCallback,
+    required this.currentTheme,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -12,6 +20,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SettingsService _settingsService = SettingsService();
+  final ThemeService _themeService = ThemeService();
   
   bool _continuousScan = false;
   bool _beepOnScan = true;
@@ -19,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoCopyToClipboard = false;
   bool _useFrontCamera = false;
   String _themeMode = 'system';
+  String _colorTheme = 'Teal';
   bool _isLoading = true;
 
   @override
@@ -38,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final autoCopy = await _settingsService.getAutoCopy();
     final useFrontCamera = await _settingsService.getUseFrontCamera();
     final themeMode = await _settingsService.getThemeMode();
+    final colorTheme = await _themeService.getColorTheme();
 
     setState(() {
       _continuousScan = continuousScan;
@@ -46,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _autoCopyToClipboard = autoCopy;
       _useFrontCamera = useFrontCamera;
       _themeMode = themeMode;
+      _colorTheme = colorTheme;
       _isLoading = false;
     });
   }
@@ -92,6 +104,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
     if (widget.updateThemeCallback != null) {
       widget.updateThemeCallback!(value);
+    }
+  }
+
+  Future<void> _updateColorTheme(String value) async {
+    await _themeService.setColorTheme(value);
+    setState(() {
+      _colorTheme = value;
+    });
+    if (widget.updateColorThemeCallback != null) {
+      widget.updateColorThemeCallback!(value);
     }
   }
 
@@ -211,6 +233,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
             _buildThemeTile(
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            const SizedBox(height: 12),
+            _buildColorThemeTile(
               cardColor: cardColor,
               textColor: textColor,
               subtitleColor: subtitleColor,
@@ -358,10 +386,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.teal.shade50.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: Colors.teal, size: 24),
+          child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -421,7 +449,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Theme',
+                    'Theme Mode',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -441,6 +469,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             Icon(Icons.chevron_right, color: subtitleColor),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorThemeTile({
+    required Color cardColor,
+    required Color textColor,
+    required Color subtitleColor,
+  }) {
+    return GestureDetector(
+      onTap: _showColorThemeDialog,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: widget.currentTheme.primaryColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Color Theme',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _colorTheme,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: subtitleColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showColorThemeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Color Theme'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 3,
+            ),
+            itemCount: ThemeService.availableThemes.length,
+            itemBuilder: (context, index) {
+              final themeName = ThemeService.availableThemes[index];
+              final theme = ThemeService.getTheme(themeName);
+              final isSelected = _colorTheme == themeName;
+
+              return GestureDetector(
+                onTap: () {
+                  _updateColorTheme(themeName);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? theme.primaryColor.withOpacity(0.2)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? theme.primaryColor
+                          : Colors.grey.shade300,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        themeName,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? theme.primaryColor
+                              : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -497,7 +661,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.blue,
+            activeColor: Theme.of(context).colorScheme.primary,
           ),
         ],
       ),

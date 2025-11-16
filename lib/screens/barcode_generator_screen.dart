@@ -189,9 +189,9 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
   void _generateBarcode() async {
     if (_barcodeController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter data to generate barcode'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Please enter data to generate barcode'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -246,10 +246,10 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
     await Clipboard.setData(ClipboardData(text: _generatedData!));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copied to clipboard'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: const Text('Copied to clipboard'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -344,7 +344,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
               return ListTile(
                 leading: Icon(
                   Icons.qr_code_scanner,
-                  color: _selectedFormat == format['name'] ? Colors.blue : Colors.grey,
+                  color: _selectedFormat == format['name'] ? Theme.of(context).colorScheme.primary : Colors.grey,
                 ),
                 title: Text(
                   format['name']!,
@@ -352,7 +352,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
                     fontWeight: _selectedFormat == format['name']
                         ? FontWeight.bold
                         : FontWeight.normal,
-                    color: _selectedFormat == format['name'] ? Colors.blue : Colors.black87,
+                    color: _selectedFormat == format['name'] ? Theme.of(context).colorScheme.primary : Colors.black87,
                   ),
                 ),
                 subtitle: Text(
@@ -533,7 +533,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
             ElevatedButton(
               onPressed: _isGenerating ? null : _generateBarcode,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -621,19 +621,19 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
                                 icon: Icons.copy,
                                 label: 'Copy',
                                 onTap: _copyToClipboard,
-                                color: Colors.blue,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                               _buildActionButton(
                                 icon: Icons.save_alt,
                                 label: 'Save',
                                 onTap: _saveBarcode,
-                                color: Colors.green,
+                                color: const Color(0xFF4CAF50),
                               ),
                               _buildActionButton(
                                 icon: Icons.share,
                                 label: 'Share',
                                 onTap: _shareBarcode,
-                                color: Colors.orange,
+                                color: Theme.of(context).colorScheme.tertiary,
                               ),
                             ],
                           ),
