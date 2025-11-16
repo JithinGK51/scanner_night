@@ -1,5 +1,6 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 /// Service for detecting code types and providing smart actions
 class CodeActionService {
@@ -167,43 +168,126 @@ class CodeActionService {
   /// Execute an action
   static Future<bool> executeAction(CodeAction action, String data) async {
     try {
+      bool result = false;
       switch (action.type) {
         case ActionType.open:
-          return await _openUrl(data);
+          result = await _openUrl(data);
+          break;
         case ActionType.email:
-          return await _openEmail(data);
+          result = await _openEmail(data);
+          break;
         case ActionType.call:
-          return await _makeCall(data);
+          result = await _makeCall(data);
+          break;
         case ActionType.message:
-          return await _sendMessage(data);
+          result = await _sendMessage(data);
+          break;
         case ActionType.pay:
-          return await _openPayment(data);
+          result = await _openPayment(data);
+          break;
         case ActionType.connect:
-          return await _connectWiFi(data);
+          result = await _connectWiFi(data);
+          break;
         case ActionType.save:
           // These require platform-specific implementations
-          return false;
+          result = false;
+          break;
         case ActionType.share:
           // Share is handled by the UI layer
-          return false;
+          result = false;
+          break;
         case ActionType.copy:
           await Clipboard.setData(ClipboardData(text: data));
-          return true;
+          result = true;
+          break;
       }
+      return result;
     } catch (e) {
+      // Log error for debugging (in production, you might want to use a logging service)
+      debugPrint('Error executing action ${action.type}: $e');
       return false;
     }
   }
 
   static Future<bool> _openUrl(String url) async {
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://$url';
+    try {
+      // Clean and prepare URL
+      String cleanUrl = url.trim();
+      
+      // Remove any whitespace or newlines
+      cleanUrl = cleanUrl.replaceAll(RegExp(r'\s+'), '');
+      
+      // Remove common prefixes that might cause issues
+      if (cleanUrl.startsWith('www.')) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+      
+      // Add protocol if missing
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        // Check if it looks like a domain
+        if (cleanUrl.contains('.') && !cleanUrl.contains(' ')) {
+          cleanUrl = 'https://$cleanUrl';
+        } else {
+          // Not a valid URL format
+          return false;
+        }
+      }
+      
+      // Parse URI
+      Uri uri;
+      try {
+        uri = Uri.parse(cleanUrl);
+      } catch (e) {
+        // Try encoding the URL if parsing fails
+        try {
+          final encodedUrl = Uri.encodeFull(cleanUrl);
+          uri = Uri.parse(encodedUrl);
+        } catch (e2) {
+          debugPrint('Failed to parse URL: $cleanUrl');
+          return false;
+        }
+      }
+      
+      // Validate URI
+      if (uri.scheme.isEmpty || (!uri.hasScheme && !uri.hasAuthority)) {
+        debugPrint('Invalid URI scheme or authority: $uri');
+        return false;
+      }
+      
+      // Check if URL can be launched
+      final canLaunch = await canLaunchUrl(uri);
+      if (!canLaunch) {
+        debugPrint('Cannot launch URL: $uri');
+        // Try with platformDefault as fallback
+        try {
+          return await launchUrl(uri, mode: LaunchMode.platformDefault);
+        } catch (e) {
+          debugPrint('Failed to launch URL with platformDefault: $e');
+          return false;
+        }
+      }
+      
+      // Try to launch URL with external application mode
+      try {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        return launched;
+      } catch (e) {
+        debugPrint('Failed to launch URL with externalApplication: $e');
+        // Fallback: try with platformDefault mode
+        try {
+          return await launchUrl(uri, mode: LaunchMode.platformDefault);
+        } catch (e2) {
+          debugPrint('Failed to launch URL with platformDefault: $e2');
+          return false;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in _openUrl: $e');
+      return false;
     }
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-    return false;
   }
 
   static Future<bool> _openEmail(String email) async {

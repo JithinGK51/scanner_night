@@ -320,7 +320,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Navigator.pop(context);
           _copyToClipboard(item);
         } else {
+          // Show loading indicator
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          
           final success = await CodeActionService.executeAction(action, item.data);
+          
+          // Close loading dialog
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          
           if (mounted) {
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -328,11 +345,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 content: Text(
                   success
                       ? '${action.label} executed successfully'
-                      : 'Failed to ${action.label.toLowerCase()}',
+                      : 'Failed to ${action.label.toLowerCase()}. Please check if the app is installed or try again.',
                 ),
                 backgroundColor: success
                     ? Colors.green
                     : Theme.of(context).colorScheme.error,
+                duration: const Duration(seconds: 3),
               ),
             );
           }
