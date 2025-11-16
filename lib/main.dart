@@ -5,6 +5,8 @@ import 'screens/qr_generator_screen.dart';
 import 'screens/barcode_generator_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/settings_service.dart';
+import 'services/theme_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,8 +19,59 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final SettingsService _settingsService = SettingsService();
+  final ThemeService _themeService = ThemeService();
+  String _themeMode = 'system';
+  String _colorTheme = 'Teal';
+  AppTheme _currentTheme = ThemeService.defaultTheme;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemeSettings();
+  }
+
+  Future<void> _loadThemeSettings() async {
+    final themeMode = await _settingsService.getThemeMode();
+    final colorTheme = await _themeService.getColorTheme();
+    setState(() {
+      _themeMode = themeMode;
+      _colorTheme = colorTheme;
+      _currentTheme = _themeService.getCurrentTheme(colorTheme);
+    });
+  }
+
+  void updateTheme(String themeMode) {
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
+
+  void updateColorTheme(String colorTheme) {
+    setState(() {
+      _colorTheme = colorTheme;
+      _currentTheme = _themeService.getCurrentTheme(colorTheme);
+    });
+  }
+
+  ThemeMode get _themeModeEnum {
+    switch (_themeMode) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,17 +79,42 @@ class MyApp extends StatelessWidget {
       title: 'Scanner App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        colorScheme: _currentTheme.colorScheme,
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        scaffoldBackgroundColor: _currentTheme.backgroundColor,
+        brightness: Brightness.light,
+        cardColor: _currentTheme.cardColor,
+        primaryColor: _currentTheme.primaryColor,
       ),
-      home: const MainScreen(),
+      darkTheme: ThemeData(
+        colorScheme: _currentTheme.darkColorScheme,
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.black,
+        brightness: Brightness.dark,
+        cardColor: Colors.grey.shade800,
+        primaryColor: _currentTheme.primaryColor,
+      ),
+      themeMode: _themeModeEnum,
+      home: MainScreen(
+        updateThemeCallback: updateTheme,
+        updateColorThemeCallback: updateColorTheme,
+        currentTheme: _currentTheme,
+      ),
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final Function(String)? updateThemeCallback;
+  final Function(String)? updateColorThemeCallback;
+  final AppTheme currentTheme;
+  
+  const MainScreen({
+    super.key,
+    this.updateThemeCallback,
+    this.updateColorThemeCallback,
+    required this.currentTheme,
+  });
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -45,12 +123,16 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
+  List<Widget> get _screens => [
     const ScannerScreen(),
     const QRGeneratorScreen(),
     const HistoryScreen(),
     const BarcodeGeneratorScreen(),
-    const SettingsScreen(),
+    SettingsScreen(
+      updateThemeCallback: widget.updateThemeCallback,
+      updateColorThemeCallback: widget.updateColorThemeCallback,
+      currentTheme: widget.currentTheme,
+    ),
   ];
 
   @override
@@ -65,9 +147,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Colors.grey.shade900 : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -99,8 +182,8 @@ class _MainScreenState extends State<MainScreen> {
     final bool isSpecial = index == 0 || index == 1 || index == 2 || index == 3; // Scan, QR, History, Barcode
     final bool isSettings = index == 4;
     
-    // Settings uses green, others use teal
-    final Color highlightColor = isSettings ? Colors.green : Colors.teal;
+    // Use theme colors
+    final Color highlightColor = widget.currentTheme.primaryColor;
 
     if (isSpecial && isSelected) {
       return Expanded(
