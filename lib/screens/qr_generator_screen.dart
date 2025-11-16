@@ -436,6 +436,56 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         ),
         centerTitle: true,
         actions: [
+          // 3-dot menu for QR types
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.black87),
+            tooltip: 'QR Code Types',
+            onSelected: (String type) {
+              setState(() {
+                _selectedType = type;
+                _inputController.clear();
+                _generatedData = null;
+              });
+            },
+            itemBuilder: (BuildContext context) {
+              return _qrTypes.map((String type) {
+                return PopupMenuItem<String>(
+                  value: type,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _getTypeIcon(type),
+                        color: _selectedType == type
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        type,
+                        style: TextStyle(
+                          fontWeight: _selectedType == type
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: _selectedType == type
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.black87,
+                        ),
+                      ),
+                      if (_selectedType == type)
+                        const Spacer(),
+                      if (_selectedType == type)
+                        Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+          ),
           if (_generatedData != null)
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black87),
