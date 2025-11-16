@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _themeMode = 'system';
   String _colorTheme = 'Teal';
   bool _isLoading = true;
+  String _scanProfile = 'fast'; // 'fast' or 'high_accuracy'
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final autoCopy = await _settingsService.getAutoCopy();
     final useFrontCamera = await _settingsService.getUseFrontCamera();
     final themeMode = await _settingsService.getThemeMode();
+    final scanProfile = await _settingsService.getScanProfile();
     final colorTheme = await _themeService.getColorTheme();
 
     setState(() {
@@ -58,6 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _useFrontCamera = useFrontCamera;
       _themeMode = themeMode;
       _colorTheme = colorTheme;
+      _scanProfile = scanProfile;
       _isLoading = false;
     });
   }
@@ -308,10 +311,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitleColor: subtitleColor,
             ),
             const SizedBox(height: 16),
-            _buildProfileTile(
+            // Fast Mode
+            _buildScanProfileTile(
               'Fast Mode',
+              'Lower accuracy, faster scanning (recommended for simple codes)',
+              _scanProfile == 'fast',
               cardColor: cardColor,
               textColor: textColor,
+              subtitleColor: subtitleColor,
+              onChanged: (value) {
+                if (value) {
+                  setState(() {
+                    _scanProfile = 'fast';
+                  });
+                  _settingsService.setFastMode(true);
+                }
+                // Switches are mutually exclusive - turning one on automatically turns the other off
+                // We don't allow turning off - one must always be selected
+              },
+            ),
+            const SizedBox(height: 12),
+            // High Accuracy Mode
+            _buildScanProfileTile(
+              'High Accuracy Mode',
+              'Higher accuracy, slower scanning (recommended for complex codes)',
+              _scanProfile == 'high_accuracy',
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+              onChanged: (value) {
+                if (value) {
+                  setState(() {
+                    _scanProfile = 'high_accuracy';
+                  });
+                  _settingsService.setHighAccuracyMode(true);
+                }
+                // Switches are mutually exclusive - turning one on automatically turns the other off
+                // We don't allow turning off - one must always be selected
+              },
             ),
             const SizedBox(height: 20),
             // Test Ad Banner
@@ -699,6 +736,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const Icon(Icons.chevron_right, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanProfileTile(
+    String title,
+    String description,
+    bool isSelected, {
+    required Color cardColor,
+    required Color textColor,
+    required Color subtitleColor,
+    required Function(bool) onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: subtitleColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch(
+            value: isSelected,
+            onChanged: onChanged,
+            activeColor: widget.currentTheme.primaryColor,
+          ),
         ],
       ),
     );

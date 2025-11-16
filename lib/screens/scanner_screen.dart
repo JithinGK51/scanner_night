@@ -49,9 +49,17 @@ class _ScannerScreenState extends State<ScannerScreen>
     final beepOnScan = await _settingsService.getBeepOnScan();
     final vibrateOnScan = await _settingsService.getVibrateOnScan();
     final autoCopy = await _settingsService.getAutoCopy();
+    final scanProfile = await _settingsService.getScanProfile();
+
+    // Set detection speed based on scan profile
+    // Fast mode: noDuplicates (faster, less accurate)
+    // High accuracy mode: normal (slower, more accurate)
+    final detectionSpeed = scanProfile == 'fast' 
+        ? DetectionSpeed.noDuplicates 
+        : DetectionSpeed.normal;
 
     _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      detectionSpeed: detectionSpeed,
       facing: useFrontCamera ? CameraFacing.front : CameraFacing.back,
       autoStart: true,
     );

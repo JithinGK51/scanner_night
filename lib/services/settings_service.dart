@@ -7,6 +7,7 @@ class SettingsService {
   static const String _autoCopyKey = 'auto_copy';
   static const String _useFrontCameraKey = 'use_front_camera';
   static const String _themeModeKey = 'theme_mode'; // 'light', 'dark', 'system'
+  static const String _scanProfileKey = 'scan_profile'; // 'fast' or 'high_accuracy'
 
   // Default values
   static const bool _defaultContinuousScan = false;
@@ -15,6 +16,7 @@ class SettingsService {
   static const bool _defaultAutoCopy = false;
   static const bool _defaultUseFrontCamera = false;
   static const String _defaultThemeMode = 'system';
+  static const String _defaultScanProfile = 'fast'; // Default to fast mode
 
   // Getters
   Future<bool> getContinuousScan() async {
@@ -47,6 +49,21 @@ class SettingsService {
     return prefs.getString(_themeModeKey) ?? _defaultThemeMode;
   }
 
+  Future<String> getScanProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_scanProfileKey) ?? _defaultScanProfile;
+  }
+
+  Future<bool> isFastMode() async {
+    final profile = await getScanProfile();
+    return profile == 'fast';
+  }
+
+  Future<bool> isHighAccuracyMode() async {
+    final profile = await getScanProfile();
+    return profile == 'high_accuracy';
+  }
+
   // Setters
   Future<void> setContinuousScan(bool value) async {
     final prefs = await SharedPreferences.getInstance();
@@ -76,6 +93,23 @@ class SettingsService {
   Future<void> setThemeMode(String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeModeKey, value);
+  }
+
+  Future<void> setScanProfile(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_scanProfileKey, value);
+  }
+
+  Future<void> setFastMode(bool enabled) async {
+    if (enabled) {
+      await setScanProfile('fast');
+    }
+  }
+
+  Future<void> setHighAccuracyMode(bool enabled) async {
+    if (enabled) {
+      await setScanProfile('high_accuracy');
+    }
   }
 }
 
