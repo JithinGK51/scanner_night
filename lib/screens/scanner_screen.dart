@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
 import '../services/settings_service.dart';
@@ -92,16 +94,24 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Future<void> _handleBarcode(BarcodeCapture capture) async {
-    if (_isProcessing && !_continuousScan) return;
-
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
 
     final barcode = barcodes.first;
     if (barcode.rawValue == null) return;
 
-    // Prevent duplicate scans if not continuous
-    if (!_continuousScan && _lastScannedCode == barcode.rawValue) return;
+    // Prevent duplicate scans if not continuous (only block if same code within 2 seconds)
+    if (!_continuousScan) {
+      if (_lastScannedCode == barcode.rawValue && _isProcessing) {
+        return; // Still processing the same code
+      }
+    }
+    
+    // Mark as processing to prevent duplicate handling
+    if (_isProcessing && !_continuousScan) {
+      return;
+    }
+    
     _lastScannedCode = barcode.rawValue;
 
     setState(() {
@@ -143,8 +153,9 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
 
     // Reset after delay (only if not continuous scan)
+    // Allow auto-detection to work by resetting processing state faster
     if (!_continuousScan) {
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(milliseconds: 1500), () {
         if (mounted) {
           setState(() {
             _isProcessing = false;
@@ -155,7 +166,7 @@ class _ScannerScreenState extends State<ScannerScreen>
       });
     } else {
       // For continuous scan, reset immediately
-      Future.delayed(const Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
           setState(() {
             _isProcessing = false;
@@ -535,12 +546,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                         Colors.black.withOpacity(0.7),
                         Colors.white,
                         () {
-                          // Pick image from gallery
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Image picker coming soon'),
-                            ),
-                          );
+                          _pickImageFromGallery();
                         },
                       ),
                     ],
