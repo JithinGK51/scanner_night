@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
 import '../services/settings_service.dart';
+import '../services/code_action_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -48,10 +49,9 @@ class _ScannerScreenState extends State<ScannerScreen>
     final autoCopy = await _settingsService.getAutoCopy();
 
     _controller = MobileScannerController(
-      detectionSpeed: continuousScan 
-          ? DetectionSpeed.noDuplicates 
-          : DetectionSpeed.noDuplicates,
+      detectionSpeed: DetectionSpeed.noDuplicates,
       facing: useFrontCamera ? CameraFacing.front : CameraFacing.back,
+      autoStart: true,
     );
 
     setState(() {
@@ -167,31 +167,25 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   String _detectCategory(String data) {
-    if (data.startsWith('http://') || data.startsWith('https://')) {
-      return 'URL';
-    } else if (data.startsWith('mailto:')) {
-      return 'Email';
-    } else if (data.startsWith('tel:')) {
-      return 'Phone';
-    } else if (data.startsWith('sms:')) {
-      return 'SMS';
-    } else if (data.startsWith('WIFI:')) {
-      return 'WiFi';
-    } else {
-      return 'Text';
-    }
+    return CodeActionService.detectCategory(data);
   }
 
   void _showScanResult(String data) {
+    final category = CodeActionService.detectCategory(data);
+    final actions = CodeActionService.getAvailableActions(data, category);
+    final displayTitle = CodeActionService.getDisplayTitle(data, category);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade900
+              : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -199,15 +193,32 @@ class _ScannerScreenState extends State<ScannerScreen>
           children: [
             Row(
               children: [
-                Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 28),
+                Icon(
+                  Icons.check_circle,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Scan Successful!',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Scan Successful!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (category != 'Text')
+                        Text(
+                          category,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -220,51 +231,136 @@ class _ScannerScreenState extends State<ScannerScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade800
+                    : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: SelectableText(
-                data,
-                style: const TextStyle(fontSize: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (displayTitle != data)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        displayTitle,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  SelectableText(
+                    data,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: data));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Copied to clipboard'),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.close),
-                  label: const Text('Close'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+            // Smart action buttons
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: actions.map((action) {
+                return _buildActionButton(action, data);
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            // Close button
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(CodeAction action, String data) {
+    IconData iconData;
+    Color? buttonColor;
+
+    switch (action.type) {
+      case ActionType.open:
+        iconData = Icons.open_in_browser;
+        buttonColor = Colors.blue;
+        break;
+      case ActionType.email:
+        iconData = Icons.email;
+        buttonColor = Colors.red;
+        break;
+      case ActionType.call:
+        iconData = Icons.call;
+        buttonColor = Colors.green;
+        break;
+      case ActionType.message:
+        iconData = Icons.message;
+        buttonColor = Colors.orange;
+        break;
+      case ActionType.pay:
+        iconData = Icons.payment;
+        buttonColor = Colors.purple;
+        break;
+      case ActionType.connect:
+        iconData = Icons.wifi;
+        buttonColor = Colors.indigo;
+        break;
+      case ActionType.save:
+        iconData = Icons.save;
+        buttonColor = Colors.teal;
+        break;
+      case ActionType.share:
+        iconData = Icons.share;
+        buttonColor = Colors.blueGrey;
+        break;
+      case ActionType.copy:
+        iconData = Icons.copy;
+        buttonColor = Theme.of(context).colorScheme.primary;
+        break;
+    }
+
+    return ElevatedButton.icon(
+      onPressed: () async {
+        if (action.type == ActionType.share) {
+          // Share functionality
+          Navigator.pop(context);
+          // Share will be handled by the UI
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Share functionality coming soon'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        } else {
+          final success = await CodeActionService.executeAction(action, data);
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  success
+                      ? '${action.label} executed successfully'
+                      : 'Failed to ${action.label.toLowerCase()}',
+                ),
+                backgroundColor: success
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+        }
+      },
+      icon: Icon(iconData, size: 18),
+      label: Text(action.label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
     );
   }

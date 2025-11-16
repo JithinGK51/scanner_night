@@ -11,6 +11,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
+import '../services/barcode_validation_service.dart';
 
 class BarcodeGeneratorScreen extends StatefulWidget {
   const BarcodeGeneratorScreen({super.key});
@@ -46,144 +47,11 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
   }
 
   String _getHintText() {
-    final format = _barcodeFormats.firstWhere(
-      (f) => f['name'] == _selectedFormat,
-      orElse: () => {'name': _selectedFormat, 'hint': 'Enter barcode data'},
-    );
-    return format['hint'] ?? 'Enter barcode data';
-  }
-
-  // Calculate EAN-13 checksum
-  int _calculateEAN13Checksum(String digits) {
-    if (digits.length != 12) return -1;
-    int sum = 0;
-    for (int i = 0; i < 12; i++) {
-      int digit = int.parse(digits[i]);
-      sum += (i % 2 == 0) ? digit : digit * 3;
-    }
-    return (10 - (sum % 10)) % 10;
-  }
-
-  // Calculate EAN-8 checksum
-  int _calculateEAN8Checksum(String digits) {
-    if (digits.length != 7) return -1;
-    int sum = 0;
-    for (int i = 0; i < 7; i++) {
-      int digit = int.parse(digits[i]);
-      sum += (i % 2 == 0) ? digit * 3 : digit;
-    }
-    return (10 - (sum % 10)) % 10;
-  }
-
-  // Calculate UPC-A checksum
-  int _calculateUPCChecksum(String digits) {
-    if (digits.length != 11) return -1;
-    int sum = 0;
-    for (int i = 0; i < 11; i++) {
-      int digit = int.parse(digits[i]);
-      sum += (i % 2 == 0) ? digit * 3 : digit;
-    }
-    return (10 - (sum % 10)) % 10;
-  }
-
-  String _fixChecksum(String input) {
-    if (!RegExp(r'^\d+$').hasMatch(input)) return input;
-
-    switch (_selectedFormat) {
-      case 'EAN-13':
-        if (input.length == 12) {
-          // Auto-calculate checksum
-          int checksum = _calculateEAN13Checksum(input);
-          return '$input$checksum';
-        } else if (input.length == 13) {
-          // Fix existing checksum
-          String base = input.substring(0, 12);
-          int correctChecksum = _calculateEAN13Checksum(base);
-          return '$base$correctChecksum';
-        }
-        break;
-      case 'EAN-8':
-        if (input.length == 7) {
-          int checksum = _calculateEAN8Checksum(input);
-          return '$input$checksum';
-        } else if (input.length == 8) {
-          String base = input.substring(0, 7);
-          int correctChecksum = _calculateEAN8Checksum(base);
-          return '$base$correctChecksum';
-        }
-        break;
-      case 'UPC-A':
-        if (input.length == 11) {
-          int checksum = _calculateUPCChecksum(input);
-          return '$input$checksum';
-        } else if (input.length == 12) {
-          String base = input.substring(0, 11);
-          int correctChecksum = _calculateUPCChecksum(base);
-          return '$base$correctChecksum';
-        }
-        break;
-    }
-    return input;
-  }
-
-  bool _validateInput(String input) {
-    if (!RegExp(r'^\d+$').hasMatch(input)) {
-      if (_selectedFormat == 'Code-128' || 
-          _selectedFormat == 'Code-39' || 
-          _selectedFormat == 'Code-93') {
-        return input.isNotEmpty;
-      }
-      if (_selectedFormat == 'Codabar') {
-        return input.isNotEmpty && RegExp(r'^[0-9A-D\-\$:/.+]+$').hasMatch(input);
-      }
-      return false;
-    }
-
-    switch (_selectedFormat) {
-      case 'EAN-13':
-        return input.length == 12 || input.length == 13;
-      case 'EAN-8':
-        return input.length == 7 || input.length == 8;
-      case 'UPC-A':
-        return input.length == 11 || input.length == 12;
-      case 'UPC-E':
-        return input.length >= 6 && input.length <= 8;
-      case 'ITF-14':
-        return input.length == 14;
-      case 'Code-128':
-      case 'Code-39':
-      case 'Code-93':
-        return input.isNotEmpty;
-      case 'Codabar':
-        return input.isNotEmpty && RegExp(r'^[0-9A-D\-\$:/.+]+$').hasMatch(input);
-      default:
-        return input.isNotEmpty;
-    }
+    return BarcodeValidationService.getHintText(_selectedFormat);
   }
 
   Barcode _getBarcode() {
-    switch (_selectedFormat) {
-      case 'EAN-13':
-        return Barcode.ean13();
-      case 'EAN-8':
-        return Barcode.ean8();
-      case 'UPC-A':
-        return Barcode.upcA();
-      case 'UPC-E':
-        return Barcode.upcE();
-      case 'Code-128':
-        return Barcode.code128();
-      case 'Code-39':
-        return Barcode.code39();
-      case 'Code-93':
-        return Barcode.code93();
-      case 'ITF-14':
-        return Barcode.itf14();
-      case 'Codabar':
-        return Barcode.codabar();
-      default:
-        return Barcode.code128();
-    }
+    return BarcodeValidationService.getBarcode(_selectedFormat);
   }
 
   void _generateBarcode() async {
@@ -199,7 +67,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
 
     String input = _barcodeController.text.trim();
     
-    if (!_validateInput(input)) {
+    if (!BarcodeValidationService.validateInput(input, _selectedFormat)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Invalid input for $_selectedFormat. ${_getHintText()}'),
@@ -210,7 +78,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
     }
 
     // Auto-fix checksum for formats that require it
-    String processedData = _fixChecksum(input);
+    String processedData = BarcodeValidationService.fixChecksum(input, _selectedFormat);
     
     // Update controller if checksum was fixed
     if (processedData != input && RegExp(r'^\d+$').hasMatch(processedData)) {
