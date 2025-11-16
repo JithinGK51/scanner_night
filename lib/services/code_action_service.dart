@@ -51,10 +51,9 @@ class CodeActionService {
   /// Check if code is a location (geo coordinates)
   static bool _isLocation(String data) {
     return data.startsWith('geo:') ||
-        data.startsWith('http://maps.google.com') ||
-        data.startsWith('https://maps.google.com') ||
-        data.startsWith('http://www.google.com/maps') ||
-        data.startsWith('https://www.google.com/maps');
+        data.contains('maps.google.com') ||
+        data.contains('google.com/maps') ||
+        (data.contains(',') && RegExp(r'^-?\d+\.?\d*,-?\d+\.?\d*$').hasMatch(data));
   }
 
   /// Check if code is an event (iCalendar format)
@@ -171,7 +170,13 @@ class CodeActionService {
       bool result = false;
       switch (action.type) {
         case ActionType.open:
-          result = await _openUrl(data);
+          // Check if it's a location that needs special handling
+          if (data.startsWith('geo:') || 
+              (data.contains(',') && RegExp(r'^-?\d+\.?\d*,-?\d+\.?\d*$').hasMatch(data))) {
+            result = await _openLocation(data);
+          } else {
+            result = await _openUrl(data);
+          }
           break;
         case ActionType.email:
           result = await _openEmail(data);
@@ -190,6 +195,7 @@ class CodeActionService {
           break;
         case ActionType.save:
           // These require platform-specific implementations
+          // For now, just return false (can be implemented later)
           result = false;
           break;
         case ActionType.share:
@@ -205,6 +211,44 @@ class CodeActionService {
     } catch (e) {
       // Log error for debugging (in production, you might want to use a logging service)
       debugPrint('Error executing action ${action.type}: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> _openLocation(String location) async {
+    try {
+      String url;
+      
+      if (location.startsWith('geo:')) {
+        // Convert geo: URI to Google Maps URL
+        final geoData = location.replaceFirst('geo:', '');
+        final coords = geoData.split(',');
+        if (coords.length >= 2) {
+          final lat = coords[0].trim();
+          final lon = coords[1].trim();
+          url = 'https://www.google.com/maps?q=$lat,$lon';
+        } else {
+          return false;
+        }
+      } else if (location.contains(',')) {
+        // Assume it's lat,lon format
+        final coords = location.split(',');
+        if (coords.length >= 2) {
+          final lat = coords[0].trim();
+          final lon = coords[1].trim();
+          url = 'https://www.google.com/maps?q=$lat,$lon';
+        } else {
+          return false;
+        }
+      } else if (location.contains('maps.google.com') || location.contains('google.com/maps')) {
+        url = location;
+      } else {
+        return false;
+      }
+      
+      return await _openUrl(url);
+    } catch (e) {
+      debugPrint('Error opening location: $e');
       return false;
     }
   }
