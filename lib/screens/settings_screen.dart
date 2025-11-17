@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/settings_service.dart';
 import '../services/theme_service.dart';
+import '../services/backup_service.dart';
+import '../services/history_service.dart';
+import 'package:local_auth/local_auth.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Function(String)? updateThemeCallback;
@@ -21,6 +24,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final SettingsService _settingsService = SettingsService();
   final ThemeService _themeService = ThemeService();
+  final BackupService _backupService = BackupService();
+  final HistoryService _historyService = HistoryService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
   
   bool _continuousScan = false;
   bool _beepOnScan = true;
@@ -31,6 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _colorTheme = 'Teal';
   bool _isLoading = true;
   String _scanProfile = 'fast'; // 'fast' or 'high_accuracy'
+  bool _storeWifiPasswords = false;
+  bool _requireBiometric = false;
 
   @override
   void initState() {
@@ -51,6 +59,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeMode = await _settingsService.getThemeMode();
     final scanProfile = await _settingsService.getScanProfile();
     final colorTheme = await _themeService.getColorTheme();
+    final storeWifiPasswords = await _settingsService.getStoreWifiPasswords();
+    final requireBiometric = await _settingsService.getRequireBiometric();
 
     setState(() {
       _continuousScan = continuousScan;
@@ -61,6 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _themeMode = themeMode;
       _colorTheme = colorTheme;
       _scanProfile = scanProfile;
+      _storeWifiPasswords = storeWifiPasswords;
+      _requireBiometric = requireBiometric;
       _isLoading = false;
     });
   }
@@ -117,6 +129,197 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
     if (widget.updateColorThemeCallback != null) {
       widget.updateColorThemeCallback!(value);
+    }
+  }
+
+  Future<void> _updateStoreWifiPasswords(bool value) async {
+    await _settingsService.setStoreWifiPasswords(value);
+    setState(() {
+      _storeWifiPasswords = value;
+    });
+  }
+
+  Future<void> _updateRequireBiometric(bool value) async {
+    await _settingsService.setRequireBiometric(value);
+    setState(() {
+      _requireBiometric = value;
+    });
+  }
+
+  Future<void> _handleClearHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear History'),
+        content: const Text('Are you sure you want to remove all scanned and generated items? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _historyService.clearHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('History cleared successfully')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleBackupRestore() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Backup & Restore'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.cloud_upload),
+              title: const Text('Export Data'),
+              subtitle: const Text('Export all app data'),
+              onTap: () => Navigator.pop(context, 'export'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_download),
+              title: const Text('Import Data'),
+              subtitle: const Text('Import all app data'),
+              onTap: () => Navigator.pop(context, 'import'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'export') {
+      final success = await _backupService.exportAllData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Data exported successfully' : 'Failed to export data'),
+          ),
+        );
+      }
+    } else if (action == 'import') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import Data'),
+          content: const Text('This will replace all current data with the imported data. Continue?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        final success = await _backupService.importAllData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(success ? 'Data imported successfully' : 'Failed to import data'),
+            ),
+          );
+          if (success) {
+            _loadSettings();
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _handleExportImportHistory() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export & Import History'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.file_download),
+              title: const Text('Export History'),
+              subtitle: const Text('Export scan history'),
+              onTap: () => Navigator.pop(context, 'export'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_upload),
+              title: const Text('Import History'),
+              subtitle: const Text('Import scan history'),
+              onTap: () => Navigator.pop(context, 'import'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'export') {
+      final success = await _backupService.exportHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'History exported successfully' : 'Failed to export history'),
+          ),
+        );
+      }
+    } else if (action == 'import') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import History'),
+          content: const Text('This will replace all current history with the imported history. Continue?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        final success = await _backupService.importHistory();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(success ? 'History imported successfully' : 'Failed to import history'),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -349,6 +552,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Switches are mutually exclusive - turning one on automatically turns the other off
                 // We don't allow turning off - one must always be selected
               },
+            ),
+            const SizedBox(height: 32),
+            // Privacy & Security Section
+            _buildSectionHeader(
+              'Privacy & Security',
+              Icons.security,
+              'Manage your data and security',
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            const SizedBox(height: 16),
+            _buildSettingTile(
+              'Store Wi-Fi Passwords',
+              'Save Wi-Fi passwords locally (encrypted)',
+              _storeWifiPasswords,
+              _updateStoreWifiPasswords,
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            _buildSettingTile(
+              'Require Biometric for Sensitive Data',
+              'Use fingerprint/face unlock for sensitive entries',
+              _requireBiometric,
+              _updateRequireBiometric,
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            _buildActionTile(
+              'Clear History',
+              'Remove all scanned and generated items',
+              Icons.delete_outline,
+              _handleClearHistory,
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            const SizedBox(height: 12),
+            _buildActionTile(
+              'Backup & Restore',
+              'Export or import your data',
+              Icons.cloud_upload_outlined,
+              _handleBackupRestore,
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
+            ),
+            const SizedBox(height: 12),
+            _buildActionTile(
+              'Export & Import',
+              'Export or import scan history',
+              Icons.file_download_outlined,
+              _handleExportImportHistory,
+              cardColor: cardColor,
+              textColor: textColor,
+              subtitleColor: subtitleColor,
             ),
             const SizedBox(height: 20),
             // Test Ad Banner
@@ -795,6 +1055,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeColor: widget.currentTheme.primaryColor,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap, {
+    required Color cardColor,
+    required Color textColor,
+    required Color subtitleColor,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: textColor, size: 24),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: subtitleColor),
+          ],
+        ),
       ),
     );
   }
