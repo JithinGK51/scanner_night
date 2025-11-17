@@ -321,6 +321,102 @@ class _ScannerScreenState extends State<ScannerScreen>
     );
   }
 
+  List<Widget> _buildAnimatedCorners(BuildContext context) {
+    final cornerSize = 30.0;
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    
+    return [
+      // Top-left corner
+      Positioned(
+        top: 0,
+        left: 0,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: CustomPaint(
+                size: Size(cornerSize, cornerSize),
+                painter: CornerPainter(
+                  color: primaryColor,
+                  corner: Corner.topLeft,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      // Top-right corner
+      Positioned(
+        top: 0,
+        right: 0,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: CustomPaint(
+                size: Size(cornerSize, cornerSize),
+                painter: CornerPainter(
+                  color: primaryColor,
+                  corner: Corner.topRight,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      // Bottom-left corner
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: CustomPaint(
+                size: Size(cornerSize, cornerSize),
+                painter: CornerPainter(
+                  color: primaryColor,
+                  corner: Corner.bottomLeft,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      // Bottom-right corner
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: CustomPaint(
+                size: Size(cornerSize, cornerSize),
+                painter: CornerPainter(
+                  color: primaryColor,
+                  corner: Corner.bottomRight,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ];
+  }
+
   /// Share scanned code data
   Future<void> _shareScannedCode(String data, String category) async {
     try {
@@ -527,67 +623,128 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
             ),
           ),
-          // Scanning frame
+          // Scanning frame with enhanced animations
           Positioned(
             top: scanningFrameTop,
             left: (screenWidth - scanningFrameSize) / 2,
-            child: Container(
-              width: scanningFrameSize,
-              height: scanningFrameSize,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: _isScanning ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
-                  width: _isScanning ? 3 : 2,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                children: [
-                  // Animated scanning dot
-                  Positioned(
-                    bottom: 80,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _animationController != null
-                          ? AnimatedBuilder(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOut,
+              builder: (context, frameAnimValue, child) {
+                return Transform.scale(
+                  scale: 0.9 + (0.1 * frameAnimValue),
+                  child: Opacity(
+                    opacity: frameAnimValue,
+                    child: Container(
+                      width: scanningFrameSize,
+                      height: scanningFrameSize,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _isScanning 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.grey.shade300,
+                          width: _isScanning ? 3 : 2,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: _isScanning
+                            ? [
+                                BoxShadow(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                  blurRadius: 20,
+                                  spreadRadius: 5,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Stack(
+                        children: [
+                          // Animated scanning line
+                          if (_isScanning && _animationController != null)
+                            AnimatedBuilder(
                               animation: _animationController!,
                               builder: (context, child) {
-                                return Transform.scale(
-                                  scale: _isScanning
-                                      ? (_scaleAnimation?.value ?? 1.0)
-                                      : (_pulseAnimation?.value ?? 1.0),
+                                return Positioned(
+                                  top: (_scaleAnimation?.value ?? 0.0) * scanningFrameSize * 0.8,
+                                  left: 0,
+                                  right: 0,
                                   child: Container(
-                                    width: _isScanning ? 16 : 8,
-                                    height: _isScanning ? 16 : 8,
+                                    height: 2,
                                     decoration: BoxDecoration(
-                                      color: _isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary,
-                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Theme.of(context).colorScheme.primary.withOpacity(0.0),
+                                          Theme.of(context).colorScheme.primary,
+                                          Theme.of(context).colorScheme.primary.withOpacity(0.0),
+                                        ],
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: (_isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary)
-                                              .withOpacity(0.6),
-                                          blurRadius: _isScanning ? 20 : 10,
-                                          spreadRadius: _isScanning ? 5 : 2,
+                                          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
                                         ),
                                       ],
                                     ),
                                   ),
                                 );
                               },
-                            )
-                          : Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.secondary,
-                                shape: BoxShape.circle,
-                              ),
                             ),
+                          // Corner brackets with animation
+                          ..._buildAnimatedCorners(context),
+                          // Animated scanning dot
+                          Positioned(
+                            bottom: 80,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: _animationController != null
+                                  ? AnimatedBuilder(
+                                      animation: _animationController!,
+                                      builder: (context, child) {
+                                        return Transform.scale(
+                                          scale: _isScanning
+                                              ? (_scaleAnimation?.value ?? 1.0)
+                                              : (_pulseAnimation?.value ?? 1.0),
+                                          child: Container(
+                                            width: _isScanning ? 16 : 8,
+                                            height: _isScanning ? 16 : 8,
+                                            decoration: BoxDecoration(
+                                              color: _isScanning 
+                                                  ? Theme.of(context).colorScheme.primary 
+                                                  : Theme.of(context).colorScheme.secondary,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: (_isScanning 
+                                                      ? Theme.of(context).colorScheme.primary 
+                                                      : Theme.of(context).colorScheme.secondary)
+                                                      .withOpacity(0.6),
+                                                  blurRadius: _isScanning ? 20 : 10,
+                                                  spreadRadius: _isScanning ? 5 : 2,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.secondary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
           // Top controls
@@ -929,6 +1086,60 @@ class ScannerOverlayPainter extends CustomPainter {
     );
 
     canvas.drawPath(overlayPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+enum Corner { topLeft, topRight, bottomLeft, bottomRight }
+
+class CornerPainter extends CustomPainter {
+  final Color color;
+  final Corner corner;
+  final double strokeWidth;
+
+  CornerPainter({
+    required this.color,
+    required this.corner,
+    this.strokeWidth = 4.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    final cornerLength = size.width * 0.4;
+
+    switch (corner) {
+      case Corner.topLeft:
+        path.moveTo(0, cornerLength);
+        path.lineTo(0, 0);
+        path.lineTo(cornerLength, 0);
+        break;
+      case Corner.topRight:
+        path.moveTo(size.width - cornerLength, 0);
+        path.lineTo(size.width, 0);
+        path.lineTo(size.width, cornerLength);
+        break;
+      case Corner.bottomLeft:
+        path.moveTo(0, size.height - cornerLength);
+        path.lineTo(0, size.height);
+        path.lineTo(cornerLength, size.height);
+        break;
+      case Corner.bottomRight:
+        path.moveTo(size.width - cornerLength, size.height);
+        path.lineTo(size.width, size.height);
+        path.lineTo(size.width, size.height - cornerLength);
+        break;
+    }
+
+    canvas.drawPath(path, paint);
   }
 
   @override

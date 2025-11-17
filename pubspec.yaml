@@ -50,6 +50,8 @@ dependencies:
   local_auth: ^2.3.0
   file_picker: ^8.1.2
   package_info_plus: ^8.0.0
+  animated_text_kit: ^4.2.2
+  introduction_screen: ^3.1.14
 
 dev_dependencies:
   flutter_test:

@@ -6,8 +6,11 @@ import 'screens/qr_generator_screen.dart';
 import 'screens/barcode_generator_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/splash_screen.dart';
+import 'screens/guide_screen.dart';
 import 'services/settings_service.dart';
 import 'services/theme_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,38 +99,7 @@ class _MyAppState extends State<MyApp> {
         primaryColor: _currentTheme.primaryColor,
       ),
       themeMode: _themeModeEnum,
-      home: Builder(
-        builder: (context) {
-          try {
-            return MainScreen(
-              updateThemeCallback: updateTheme,
-              updateColorThemeCallback: updateColorTheme,
-              currentTheme: _currentTheme,
-            );
-          } catch (e) {
-            debugPrint('Error building MainScreen: $e');
-            return Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error loading app: $e'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {});
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-        },
-      ),
+      home: const SplashScreen(),
     );
   }
 }
