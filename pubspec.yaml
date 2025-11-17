@@ -49,6 +49,7 @@ dependencies:
   image_picker: ^1.0.7
   local_auth: ^2.3.0
   file_picker: ^8.1.2
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:
