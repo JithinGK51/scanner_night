@@ -3,9 +3,12 @@ import '../services/settings_service.dart';
 import '../services/theme_service.dart';
 import '../services/backup_service.dart';
 import '../services/history_service.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'about_screen.dart';
+import 'version_screen.dart';
+import 'how_to_scan_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Function(String)? updateThemeCallback;
@@ -28,7 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ThemeService _themeService = ThemeService();
   final BackupService _backupService = BackupService();
   final HistoryService _historyService = HistoryService();
-  final LocalAuthentication _localAuth = LocalAuthentication();
   
   bool _continuousScan = false;
   bool _beepOnScan = true;
@@ -326,59 +328,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleAbout() async {
-    final packageInfo = await PackageInfo.fromPlatform();
     if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('About'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'QR & Barcode Scanner',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text('Version: ${packageInfo.version}'),
-              const SizedBox(height: 8),
-              Text('Build: ${packageInfo.buildNumber}'),
-              const SizedBox(height: 16),
-              const Text(
-                'A professional, feature-rich Flutter application for scanning and generating QR codes and barcodes.',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Features:',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text('• QR Code Scanner'),
-              const Text('• Barcode Scanner'),
-              const Text('• QR Code Generator'),
-              const Text('• Barcode Generator'),
-              const Text('• History Management'),
-              const Text('• Backup & Restore'),
-              const Text('• Privacy & Security'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const AboutScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
+
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -392,64 +361,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
       future: PackageInfo.fromPlatform(),
       builder: (context, snapshot) {
         final version = snapshot.hasData ? snapshot.data!.version : '1.0.0';
-        final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '1';
-        return GestureDetector(
-          onTap: () => _showVersionInfo(snapshot.data),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.info_outline,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 20,
-                  ),
+                child: Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Version',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
-                        ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Version',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        version,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: subtitleColor,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      version,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: subtitleColor,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                Icon(Icons.chevron_right, color: subtitleColor),
-              ],
-            ),
+              ),
+              Icon(Icons.chevron_right, color: subtitleColor),
+            ],
           ),
         );
       },
@@ -457,150 +422,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showVersionInfo(PackageInfo? packageInfo) async {
-    if (!mounted || packageInfo == null) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Version Information'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Version: ${packageInfo.version}'),
-            const SizedBox(height: 8),
-            Text('Build Number: ${packageInfo.buildNumber}'),
-            const SizedBox(height: 8),
-            Text('Package Name: ${packageInfo.packageName}'),
-            const SizedBox(height: 8),
-            Text('App Name: ${packageInfo.appName}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const VersionScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
+
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
 
   Future<void> _handleHowToScan() async {
     if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('How to Scan'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Scanning QR Codes and Barcodes:',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildInstructionStep(
-                '1',
-                'Open the Scanner',
-                'Tap the scanner icon in the bottom navigation bar.',
-              ),
-              const SizedBox(height: 12),
-              _buildInstructionStep(
-                '2',
-                'Position the Code',
-                'Point your camera at the QR code or barcode. Make sure it\'s clearly visible and well-lit.',
-              ),
-              const SizedBox(height: 12),
-              _buildInstructionStep(
-                '3',
-                'Wait for Detection',
-                'The app will automatically detect and scan the code. You\'ll hear a beep (if enabled) when successful.',
-              ),
-              const SizedBox(height: 12),
-              _buildInstructionStep(
-                '4',
-                'View Results',
-                'The scanned content will be displayed, and you can copy, share, or take actions based on the code type.',
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Tips:',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text('• Ensure good lighting'),
-              const Text('• Hold the device steady'),
-              const Text('• Keep the code at a proper distance'),
-              const Text('• Clean your camera lens if needed'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const HowToScanScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
 
-  Widget _buildInstructionStep(String number, String title, String description) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
     );
   }
 
@@ -658,105 +525,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _handlePrivacyPolicy() async {
     if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Policy'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Last Updated: ${DateTime.now().toString().split(' ')[0]}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Data Collection',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'This app collects and stores the following data locally on your device:',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text('• Scan history (QR codes and barcodes)'),
-              const Text('• Generated codes'),
-              const Text('• App settings and preferences'),
-              const SizedBox(height: 16),
-              const Text(
-                'Data Storage',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'All data is stored locally on your device using encrypted storage. We do not transmit any data to external servers unless you explicitly use the backup/export features.',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Permissions',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text('• Camera: Required for scanning QR codes and barcodes'),
-              const Text('• Storage: Required for saving generated codes and backups'),
-              const Text('• Biometric: Optional, used for securing sensitive data'),
-              const SizedBox(height: 16),
-              const Text(
-                'Your Rights',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'You have the right to:',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              const Text('• Access your data at any time'),
-              const Text('• Export your data using the backup feature'),
-              const Text('• Clear your history at any time'),
-              const Text('• Delete the app and all associated data'),
-              const SizedBox(height: 16),
-              const Text(
-                'Contact Us',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'If you have any questions about this Privacy Policy, please contact us at: support@scannerapp.com',
-                style: TextStyle(fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const PrivacyPolicyScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
+
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -1068,10 +855,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitleColor: subtitleColor,
             ),
             const SizedBox(height: 12),
-            _buildVersionTile(
-              cardColor: cardColor,
-              textColor: textColor,
-              subtitleColor: subtitleColor,
+            GestureDetector(
+              onTap: () async {
+                final packageInfo = await PackageInfo.fromPlatform();
+                _showVersionInfo(packageInfo);
+              },
+              child: _buildVersionTile(
+                cardColor: cardColor,
+                textColor: textColor,
+                subtitleColor: subtitleColor,
+              ),
             ),
             const SizedBox(height: 12),
             _buildActionTile(
@@ -1458,41 +1251,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildProfileTile(
-    String title, {
-    required Color cardColor,
-    required Color textColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-          ),
-          const Icon(Icons.chevron_right, color: Colors.grey),
-        ],
-      ),
-    );
-  }
 
   Widget _buildScanProfileTile(
     String title,
