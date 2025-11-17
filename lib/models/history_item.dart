@@ -127,25 +127,11 @@ class HistoryItem {
     }
   }
 
-  Color get iconColor {
-    switch (category) {
-      case 'URL':
-        return Colors.blue;
-      case 'Email':
-        return Colors.red;
-      case 'Phone':
-        return Colors.green;
-      case 'SMS':
-        return Colors.orange;
-      case 'WiFi':
-        return Colors.purple;
-      case 'Text':
-        return Colors.grey;
-      case 'Barcode':
-        return Colors.teal;
-      default:
-        return Colors.blue;
-    }
+  // Get icon color based on theme
+  Color getIconColor(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    // Use theme primary color for all categories to maintain consistency
+    return primaryColor;
   }
 }
 

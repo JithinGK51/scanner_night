@@ -28,11 +28,15 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
 
   final List<String> _qrTypes = [
     'URL',
-    'Text',
-    'Email',
     'Phone',
     'SMS',
+    'Email',
+    'Contact',
     'WiFi',
+    'Location',
+    'Text',
+    'Event',
+    'Payment',
   ];
 
   @override
@@ -55,9 +59,98 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         return 'Enter phone number';
       case 'WiFi':
         return 'Enter WiFi SSID (Network Name)';
+      case 'Contact':
+        return 'Enter contact name';
+      case 'Location':
+        return 'Enter location (latitude,longitude)';
+      case 'Event':
+        return 'Enter event title';
+      case 'Payment':
+        return 'Enter payment UPI ID or link';
       default:
         return 'Enter data';
     }
+  }
+
+  bool _validateInput(String input) {
+    switch (_selectedType) {
+      case 'Email':
+        if (!input.contains('@') || !input.contains('.')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Please enter a valid email address'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+          return false;
+        }
+        break;
+      case 'Phone':
+      case 'SMS':
+        if (input.length < 7) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Please enter a valid phone number'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+          return false;
+        }
+        break;
+      case 'Location':
+        // Check if it's in lat,lon format
+        final coords = input.split(',');
+        if (coords.length == 2) {
+          try {
+            final lat = double.parse(coords[0].trim());
+            final lon = double.parse(coords[1].trim());
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Invalid coordinates. Use format: latitude,longitude'),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+              );
+              return false;
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Invalid coordinates. Use format: latitude,longitude'),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+            return false;
+          }
+        } else if (!input.contains('maps.google.com') && !input.contains('google.com/maps')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Enter coordinates as: latitude,longitude (e.g., 40.7128,-74.0060)'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+          return false;
+        }
+        break;
+      case 'Payment':
+        // Validate payment format
+        if (!input.contains('@') && 
+            !input.startsWith('upi://') && 
+            !input.startsWith('paytm://') &&
+            !input.startsWith('phonepe://') &&
+            !input.startsWith('gpay://') &&
+            !input.contains('paypal.me/')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Enter a valid UPI ID (e.g., name@paytm) or payment link'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+          return false;
+        }
+        break;
+    }
+    return true;
   }
 
   String _formatQRData(String input) {
@@ -78,6 +171,49 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         // For simplicity, using input as SSID with empty password
         // In production, you might want separate fields for SSID and password
         return 'WIFI:T:WPA;S:$input;P:;;';
+      case 'Contact':
+        // vCard format - basic implementation
+        // Format: BEGIN:VCARD\nVERSION:3.0\nFN:Name\nEND:VCARD
+        return 'BEGIN:VCARD\nVERSION:3.0\nFN:$input\nEND:VCARD';
+      case 'Location':
+        // geo: URI format - expects latitude,longitude
+        // Format: geo:latitude,longitude
+        final coords = input.split(',');
+        if (coords.length == 2) {
+          final lat = coords[0].trim();
+          final lon = coords[1].trim();
+          return 'geo:$lat,$lon';
+        } else {
+          // If not in lat,lon format, try to parse as Google Maps URL or return as-is
+          if (input.contains('maps.google.com') || input.contains('google.com/maps')) {
+            return input;
+          }
+          return 'geo:$input';
+        }
+      case 'Event':
+        // iCalendar format - basic implementation
+        // Format: BEGIN:VEVENT\nSUMMARY:Event Title\nDTSTART:YYYYMMDDTHHMMSS\nDTEND:YYYYMMDDTHHMMSS\nEND:VEVENT
+        final now = DateTime.now();
+        final start = now.toIso8601String().replaceAll(RegExp(r'[-:]'), '').split('.')[0];
+        final end = now.add(const Duration(hours: 1)).toIso8601String().replaceAll(RegExp(r'[-:]'), '').split('.')[0];
+        return 'BEGIN:VEVENT\nSUMMARY:$input\nDTSTART:$start\nDTEND:$end\nEND:VEVENT';
+      case 'Payment':
+        // Payment QR format - supports UPI, PayPal, etc.
+        // If it's already a payment URL, use it as-is
+        if (input.startsWith('upi://') || 
+            input.startsWith('paytm://') || 
+            input.startsWith('phonepe://') ||
+            input.startsWith('gpay://') ||
+            input.contains('paypal.me/') ||
+            input.contains('@')) {
+          // If it's a UPI ID (contains @), format it as UPI payment
+          if (input.contains('@') && !input.startsWith('upi://')) {
+            return 'upi://pay?pa=$input&pn=Payment&am=&cu=INR';
+          }
+          return input;
+        }
+        // Otherwise, treat as payment link
+        return input;
       default:
         return input;
     }
@@ -86,17 +222,23 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   void _generateQRCode() async {
     if (_inputController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter data to generate QR code'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Please enter data to generate QR code'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
 
+    // Validate input based on type
+    final input = _inputController.text.trim();
+    if (!_validateInput(input)) {
+      return;
+    }
+
     setState(() {
       _isGenerating = true;
-      _generatedData = _formatQRData(_inputController.text.trim());
+      _generatedData = _formatQRData(input);
     });
 
     // Add to history
@@ -125,10 +267,10 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     await Clipboard.setData(ClipboardData(text: _generatedData!));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copied to clipboard'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: const Text('Copied to clipboard'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -168,7 +310,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error saving QR code: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -200,7 +342,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error sharing QR code: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -223,7 +365,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               return ListTile(
                 leading: Icon(
                   _getTypeIcon(type),
-                  color: _selectedType == type ? Colors.blue : Colors.grey,
+                  color: _selectedType == type ? Theme.of(context).colorScheme.primary : Colors.grey,
                 ),
                 title: Text(
                   type,
@@ -231,7 +373,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     fontWeight: _selectedType == type
                         ? FontWeight.bold
                         : FontWeight.normal,
-                    color: _selectedType == type ? Colors.blue : Colors.black87,
+                    color: _selectedType == type ? Theme.of(context).colorScheme.primary : Colors.black87,
                   ),
                 ),
                 onTap: () {
@@ -264,6 +406,14 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
         return Icons.sms;
       case 'WiFi':
         return Icons.wifi;
+      case 'Contact':
+        return Icons.person;
+      case 'Location':
+        return Icons.location_on;
+      case 'Event':
+        return Icons.event;
+      case 'Payment':
+        return Icons.payment;
       default:
         return Icons.qr_code;
     }
@@ -271,21 +421,75 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'QR Generator',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: textColor,
           ),
         ),
         centerTitle: true,
         actions: [
+          // 3-dot menu for QR types
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: textColor),
+            tooltip: 'QR Code Types',
+            onSelected: (String type) {
+              setState(() {
+                _selectedType = type;
+                _inputController.clear();
+                _generatedData = null;
+              });
+            },
+            itemBuilder: (BuildContext context) {
+              return _qrTypes.map((String type) {
+                return PopupMenuItem<String>(
+                  value: type,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _getTypeIcon(type),
+                        color: _selectedType == type
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        type,
+                        style: TextStyle(
+                          fontWeight: _selectedType == type
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: _selectedType == type
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.black87,
+                        ),
+                      ),
+                      if (_selectedType == type)
+                        const Spacer(),
+                      if (_selectedType == type)
+                        Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+          ),
           if (_generatedData != null)
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.black87),
@@ -422,11 +626,13 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   hintStyle: const TextStyle(color: Colors.grey),
                 ),
                 style: const TextStyle(fontSize: 16),
-                keyboardType: _selectedType == 'Email'
+                keyboardType: _selectedType == 'Email' || _selectedType == 'Payment'
                     ? TextInputType.emailAddress
                     : _selectedType == 'Phone' || _selectedType == 'SMS'
                         ? TextInputType.phone
-                        : TextInputType.text,
+                        : _selectedType == 'Location'
+                            ? TextInputType.number
+                            : TextInputType.text,
               ),
             ),
             const SizedBox(height: 30),
@@ -434,7 +640,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
             ElevatedButton(
               onPressed: _isGenerating ? null : _generateQRCode,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -510,19 +716,19 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                           icon: Icons.copy,
                           label: 'Copy',
                           onTap: _copyToClipboard,
-                          color: Colors.blue,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         _buildActionButton(
                           icon: Icons.save_alt,
                           label: 'Save',
                           onTap: _saveQRCode,
-                          color: Colors.green,
+                          color: const Color(0xFF4CAF50),
                         ),
                         _buildActionButton(
                           icon: Icons.share,
                           label: 'Share',
                           onTap: _shareQRCode,
-                          color: Colors.orange,
+                          color: Theme.of(context).colorScheme.tertiary,
                         ),
                       ],
                     ),
