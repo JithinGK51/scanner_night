@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
 import '../services/settings_service.dart';
 import '../services/code_action_service.dart';
-import '../services/app_detection_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -64,15 +64,19 @@ class _ScannerScreenState extends State<ScannerScreen>
       facing: useFrontCamera ? CameraFacing.front : CameraFacing.back,
       autoStart: true,
       formats: [
+        // QR Code formats
         BarcodeFormat.qrCode,
+        // 1D Barcode formats
         BarcodeFormat.ean13,
         BarcodeFormat.ean8,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
         BarcodeFormat.code128,
         BarcodeFormat.code39,
         BarcodeFormat.code93,
-        BarcodeFormat.upcE,
         BarcodeFormat.codabar,
         BarcodeFormat.itf,
+        // 2D Barcode formats
         BarcodeFormat.pdf417,
         BarcodeFormat.dataMatrix,
         BarcodeFormat.aztec,
@@ -206,27 +210,10 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Future<void> _showScanResult(String data) async {
     final category = CodeActionService.detectCategory(data);
-    
-    // Show loading while detecting apps
-    if (mounted && category == 'Payment') {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    
     final actions = await CodeActionService.getAvailableActions(data, category);
     final displayTitle = CodeActionService.getDisplayTitle(data, category);
 
     if (!mounted) return;
-    
-    // Close loading dialog if it was shown
-    if (category == 'Payment') {
-      Navigator.pop(context);
-    }
     
     showModalBottomSheet(
       context: context,
@@ -334,202 +321,82 @@ class _ScannerScreenState extends State<ScannerScreen>
     );
   }
 
-  /// Show payment apps selection dialog
-  Future<void> _showPaymentAppsDialog(String paymentData) async {
-    if (!mounted) return;
-    
-    // Show loading while detecting apps
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-    
-    // Get installed payment apps
-    final paymentApps = await AppDetectionService.getCompatiblePaymentApps(paymentData);
-    
-    if (!mounted) return;
-    
-    // Close loading dialog
-    Navigator.pop(context);
-    
-    if (paymentApps.isEmpty) {
-      // No payment apps installed
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No payment apps found on your device. Please install a payment app to proceed.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+  /// Share scanned code data
+  Future<void> _shareScannedCode(String data, String category) async {
+    try {
+      // Prepare share text with category information
+      String shareText = data;
+      String subject = 'Scanned Code';
+      
+      // Add context based on category
+      switch (category) {
+        case 'URL':
+          subject = 'Scanned URL';
+          shareText = data;
+          break;
+        case 'Email':
+          subject = 'Scanned Email';
+          shareText = data;
+          break;
+        case 'Phone':
+          subject = 'Scanned Phone Number';
+          shareText = data;
+          break;
+        case 'SMS':
+          subject = 'Scanned SMS';
+          shareText = data;
+          break;
+        case 'Payment':
+          subject = 'Scanned Payment Code';
+          shareText = data;
+          break;
+        case 'WiFi':
+          subject = 'Scanned WiFi Details';
+          shareText = data;
+          break;
+        case 'Contact':
+          subject = 'Scanned Contact';
+          shareText = data;
+          break;
+        case 'Location':
+          subject = 'Scanned Location';
+          shareText = data;
+          break;
+        case 'Event':
+          subject = 'Scanned Event';
+          shareText = data;
+          break;
+        default:
+          subject = 'Scanned Code';
+          shareText = data;
       }
-      return;
-    }
-    
-    // Show payment apps selection dialog
-    if (!mounted) return;
-    
-    final selectedApp = await showDialog<PaymentApp>(
-      context: context,
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final cardColor = isDark ? Colors.grey.shade800 : Colors.white;
-        final textColor = isDark ? Colors.white : Colors.black87;
-        final subtitleColor = isDark ? Colors.grey.shade400 : Colors.grey;
-        
-        return AlertDialog(
-          title: const Text('Select Payment App'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: paymentApps.length,
-              itemBuilder: (context, index) {
-                final app = paymentApps[index];
-                final appColor = _generateColorFromString(app.name);
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: appColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.payment,
-                        color: appColor,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      app.name,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Tap to pay with ${app.name}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: subtitleColor,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: subtitleColor,
-                    ),
-                    onTap: () => Navigator.pop(context, app),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    tileColor: cardColor,
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-    
-    if (selectedApp != null && mounted) {
-      // Create a code action for the selected app
-      final action = CodeAction(
-        type: ActionType.pay,
-        label: 'Pay with ${selectedApp.name}',
-        icon: selectedApp.icon,
-        packageName: selectedApp.packageName,
-        scheme: selectedApp.scheme,
+
+      // Share the data
+      await Share.share(
+        shareText,
+        subject: subject,
       );
-      
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-      
-      // Execute payment action
-      final success = await CodeActionService.executeAction(action, paymentData);
-      
-      // Close loading dialog
-      if (mounted) {
-        Navigator.pop(context);
-      }
-      
-      // Close the scan result dialog
-      if (mounted) {
-        Navigator.pop(context);
-      }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              success
-                  ? 'Opening ${selectedApp.name}...'
-                  : 'Failed to open ${selectedApp.name}. Please try again or select another app.',
-            ),
-            backgroundColor: success
-                ? Colors.green
-                : Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 3),
+            content: Text('Shared successfully'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sharing: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     }
-  }
-
-  /// Generate a consistent color from a string (app name)
-  /// This creates a unique color for each app based on its name dynamically
-  Color _generateColorFromString(String text) {
-    // Create a hash from the string to get consistent color for same app
-    final hash = text.hashCode;
-    
-    // Generate RGB values from hash
-    final r = (hash.abs() & 0xFF0000) >> 16;
-    final g = (hash.abs() & 0x00FF00) >> 8;
-    final b = hash.abs() & 0x0000FF;
-    
-    // Ensure minimum brightness for visibility (at least 100)
-    final brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    
-    // If color is too dark, lighten it
-    if (brightness < 100) {
-      final factor = 150 / (brightness + 1);
-      return Color.fromRGBO(
-        (r * factor).clamp(0, 255).toInt(),
-        (g * factor).clamp(0, 255).toInt(),
-        (b * factor).clamp(0, 255).toInt(),
-        1.0,
-      );
-    }
-    
-    // If color is too light, darken it slightly for better contrast with white text
-    if (brightness > 220) {
-      return Color.fromRGBO(
-        (r * 0.75).clamp(0, 255).toInt(),
-        (g * 0.75).clamp(0, 255).toInt(),
-        (b * 0.75).clamp(0, 255).toInt(),
-        1.0,
-      );
-    }
-    
-    return Color.fromRGBO(r, g, b, 1.0);
   }
 
   Widget _buildActionButton(CodeAction action, String data, String category) {
@@ -580,16 +447,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         if (action.type == ActionType.share) {
           // Share functionality
           Navigator.pop(context);
-          // Share will be handled by the UI
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Share functionality coming soon'),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-            ),
-          );
-        } else if (action.type == ActionType.pay) {
-          // Show payment apps selection dialog
-          await _showPaymentAppsDialog(data);
+          await _shareScannedCode(data, category);
         } else {
           // Show loading indicator
           if (mounted) {

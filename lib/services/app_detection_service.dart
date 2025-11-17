@@ -7,6 +7,7 @@ class AppDetectionService {
 
   /// Payment app package names and their display names
   static const Map<String, Map<String, String>> _paymentApps = {
+    // Indian Payment Apps
     'com.phonepe.app': {
       'name': 'PhonePe',
       'scheme': 'phonepe://',
@@ -25,6 +26,11 @@ class AppDetectionService {
     'com.tez': {
       'name': 'Google Pay (Tez)',
       'scheme': 'tez://',
+      'icon': 'payment',
+    },
+    'com.bhimupi': {
+      'name': 'BHIM UPI',
+      'scheme': 'bhim://',
       'icon': 'payment',
     },
     'com.razorpay': {
@@ -47,11 +53,42 @@ class AppDetectionService {
       'scheme': 'freecharge://',
       'icon': 'payment',
     },
-    'com.bhimupi': {
-      'name': 'BHIM UPI',
-      'scheme': 'bhim://',
+    'com.airtel.money': {
+      'name': 'Airtel Thanks',
+      'scheme': 'airtel://',
       'icon': 'payment',
     },
+    'com.cashfree.cashfree': {
+      'name': 'Cashfree',
+      'scheme': 'cashfree://',
+      'icon': 'payment',
+    },
+    'com.axis.mobile': {
+      'name': 'Axis Pay',
+      'scheme': 'axis://',
+      'icon': 'payment',
+    },
+    'com.hdfc.bank': {
+      'name': 'HDFC PayZapp',
+      'scheme': 'hdfc://',
+      'icon': 'payment',
+    },
+    'com.icici.bank': {
+      'name': 'iMobile Pay',
+      'scheme': 'icici://',
+      'icon': 'payment',
+    },
+    'com.sbi.sbiplus': {
+      'name': 'SBI Pay',
+      'scheme': 'sbi://',
+      'icon': 'payment',
+    },
+    'com.kotak.mobilebanking': {
+      'name': 'Kotak Pay',
+      'scheme': 'kotak://',
+      'icon': 'payment',
+    },
+    // International Payment Apps
     'com.paypal.android.p2pmobile': {
       'name': 'PayPal',
       'scheme': 'paypal://',
@@ -62,14 +99,39 @@ class AppDetectionService {
       'scheme': 'venmo://',
       'icon': 'payment',
     },
-    'com.cashfree.cashfree': {
-      'name': 'Cashfree',
-      'scheme': 'cashfree://',
+    'com.squareup.cash': {
+      'name': 'Cash App',
+      'scheme': 'squarecash://',
       'icon': 'payment',
     },
-    'com.airtel.money': {
-      'name': 'Airtel Thanks',
-      'scheme': 'airtel://',
+    'com.zellepay.zelle': {
+      'name': 'Zelle',
+      'scheme': 'zelle://',
+      'icon': 'payment',
+    },
+    'com.stripe.stripe': {
+      'name': 'Stripe',
+      'scheme': 'stripe://',
+      'icon': 'payment',
+    },
+    'com.alipay.android.phone.mobilecommon.alipayclient': {
+      'name': 'Alipay',
+      'scheme': 'alipay://',
+      'icon': 'payment',
+    },
+    'com.tencent.mm': {
+      'name': 'WeChat Pay',
+      'scheme': 'weixin://',
+      'icon': 'payment',
+    },
+    'com.samsung.android.spay': {
+      'name': 'Samsung Pay',
+      'scheme': 'samsungpay://',
+      'icon': 'payment',
+    },
+    'com.apple.passbook': {
+      'name': 'Apple Pay',
+      'scheme': 'applepay://',
       'icon': 'payment',
     },
   };
@@ -96,16 +158,6 @@ class AppDetectionService {
     return false;
   }
 
-  /// Alternative method to check if app is installed (Android)
-  static Future<bool> _checkAppInstalledAlternative(String packageName) async {
-    try {
-      // Try to launch the app's URL scheme
-      // This is a fallback method
-      return false; // Will be implemented with url_launcher
-    } catch (e) {
-      return false;
-    }
-  }
 
   /// Check if app is installed on iOS using URL schemes
   static Future<bool> _checkIOSAppInstalled(String packageName) async {
@@ -142,21 +194,58 @@ class AppDetectionService {
 
     final lowerData = paymentData.toLowerCase();
 
-    // Check if it's a UPI payment code
+    // Check if it's a UPI payment code (most common in India)
     final isUPI = lowerData.contains('upi://') || 
-                  lowerData.contains('upi') ||
-                  (lowerData.contains('@') && RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(paymentData));
+                  lowerData.contains('upi?') ||
+                  lowerData.contains('upi&') ||
+                  lowerData.contains('upi=') ||
+                  (lowerData.contains('@') && 
+                   (lowerData.contains('@paytm') || 
+                    lowerData.contains('@phonepe') ||
+                    lowerData.contains('@ybl') || 
+                    lowerData.contains('@axl') ||
+                    lowerData.contains('@okicici') || 
+                    lowerData.contains('@okaxis') ||
+                    lowerData.contains('@okhdfcbank') ||
+                    lowerData.contains('@okaxis') ||
+                    lowerData.contains('@okkotak') ||
+                    lowerData.contains('@oksbi') ||
+                    RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(paymentData)));
 
     // For UPI codes, return ALL installed payment apps (they can all handle UPI)
     if (isUPI) {
       return installedApps;
     }
 
+    // Check for PayPal
+    if (lowerData.contains('paypal.me/') || 
+        lowerData.contains('paypal.com/') ||
+        lowerData.startsWith('paypal://')) {
+      for (final app in installedApps) {
+        if (app.packageName.contains('paypal')) {
+          compatibleApps.add(app);
+        }
+      }
+      if (compatibleApps.isNotEmpty) return compatibleApps;
+    }
+
+    // Check for Venmo
+    if (lowerData.contains('venmo.com/') || 
+        lowerData.startsWith('venmo://')) {
+      for (final app in installedApps) {
+        if (app.packageName.contains('venmo')) {
+          compatibleApps.add(app);
+        }
+      }
+      if (compatibleApps.isNotEmpty) return compatibleApps;
+    }
+
     // For specific payment schemes, check compatibility
     for (final app in installedApps) {
       final schemeWithoutProtocol = app.scheme.replaceAll('://', '');
       if (lowerData.contains(schemeWithoutProtocol) || 
-          lowerData.startsWith(app.scheme)) {
+          lowerData.startsWith(app.scheme) ||
+          lowerData.contains('$schemeWithoutProtocol://')) {
         compatibleApps.add(app);
       }
     }
@@ -172,18 +261,54 @@ class AppDetectionService {
   /// Check if data is a payment code
   static bool _isPaymentCode(String data) {
     final lowerData = data.toLowerCase();
-    return lowerData.contains('upi') ||
+    
+    // UPI patterns
+    final isUPI = lowerData.contains('upi') ||
         lowerData.contains('paytm') ||
         lowerData.contains('phonepe') ||
         lowerData.contains('gpay') ||
-        lowerData.contains('paypal') ||
+        lowerData.contains('bhim') ||
+        lowerData.contains('@paytm') ||
+        lowerData.contains('@phonepe') ||
+        lowerData.contains('@ybl') ||
+        lowerData.contains('@axl') ||
+        lowerData.contains('@okicici') ||
+        lowerData.contains('@okaxis') ||
+        lowerData.contains('@okhdfcbank') ||
+        lowerData.contains('@okkotak') ||
+        lowerData.contains('@oksbi');
+    
+    // International payment patterns
+    final isInternational = lowerData.contains('paypal') ||
         lowerData.contains('venmo') ||
-        lowerData.contains('razorpay') ||
+        lowerData.contains('cashapp') ||
+        lowerData.contains('zelle') ||
+        lowerData.contains('stripe') ||
+        lowerData.contains('alipay') ||
+        lowerData.contains('wechat') ||
+        lowerData.contains('weixin') ||
+        lowerData.contains('samsungpay') ||
+        lowerData.contains('applepay');
+    
+    // Other payment patterns
+    final isOther = lowerData.contains('razorpay') ||
         lowerData.contains('amazonpay') ||
         lowerData.contains('mobikwik') ||
         lowerData.contains('freecharge') ||
-        lowerData.contains('bhim') ||
-        (lowerData.contains('@') && (lowerData.contains('pay') || lowerData.contains('upi')));
+        lowerData.contains('cashfree') ||
+        lowerData.contains('axis') ||
+        lowerData.contains('hdfc') ||
+        lowerData.contains('icici') ||
+        lowerData.contains('sbi') ||
+        lowerData.contains('kotak');
+    
+    // Email-like patterns that might be UPI
+    final isEmailLike = lowerData.contains('@') && 
+        (lowerData.contains('pay') || 
+         lowerData.contains('upi') ||
+         RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(data));
+    
+    return isUPI || isInternational || isOther || isEmailLike;
   }
 }
 

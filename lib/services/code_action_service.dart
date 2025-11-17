@@ -1,7 +1,6 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'app_detection_service.dart';
 
 /// Service for detecting code types and providing smart actions
 class CodeActionService {
@@ -36,24 +35,35 @@ class CodeActionService {
     
     // Check for UPI codes (most common in India)
     final isUPI = lowerData.contains('upi://') ||
+        lowerData.contains('upi?') ||
+        lowerData.contains('upi&') ||
+        lowerData.contains('upi=') ||
         lowerData.contains('upi') ||
         (RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(data) &&
          (lowerData.contains('pay') || lowerData.contains('upi') || 
           lowerData.contains('@paytm') || lowerData.contains('@phonepe') ||
           lowerData.contains('@ybl') || lowerData.contains('@axl') ||
-          lowerData.contains('@okicici') || lowerData.contains('@okaxis')));
+          lowerData.contains('@okicici') || lowerData.contains('@okaxis') ||
+          lowerData.contains('@okhdfcbank') || lowerData.contains('@okkotak') ||
+          lowerData.contains('@oksbi')));
     
     // Check for other payment schemes
     final isOtherPayment = lowerData.contains('paytm://') ||
         lowerData.contains('phonepe://') ||
         lowerData.contains('gpay://') ||
         lowerData.contains('paypal.me/') ||
+        lowerData.contains('paypal.com/') ||
         lowerData.contains('venmo.com/') ||
         lowerData.contains('razorpay://') ||
         lowerData.contains('amazonpay://') ||
         lowerData.contains('mobikwik://') ||
         lowerData.contains('freecharge://') ||
-        lowerData.contains('bhim://');
+        lowerData.contains('bhim://') ||
+        lowerData.contains('cashapp://') ||
+        lowerData.contains('zelle://') ||
+        lowerData.contains('alipay://') ||
+        lowerData.contains('wechat://') ||
+        lowerData.contains('weixin://');
     
     return isUPI || isOtherPayment;
   }
