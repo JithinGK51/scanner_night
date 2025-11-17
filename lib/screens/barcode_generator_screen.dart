@@ -71,7 +71,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Invalid input for $_selectedFormat. ${_getHintText()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -157,7 +157,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error saving barcode: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -189,7 +189,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error sharing barcode: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -536,7 +536,7 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(displayMessage),
-                            backgroundColor: Colors.red,
+                            backgroundColor: Theme.of(context).colorScheme.error,
                             duration: const Duration(seconds: 4),
                             action: SnackBarAction(
                               label: 'OK',

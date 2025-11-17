@@ -405,9 +405,9 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> with SingleTi
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.email,
-                          color: Colors.blue,
+                          color: Theme.of(context).colorScheme.primary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),

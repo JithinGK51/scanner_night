@@ -477,7 +477,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Shared successfully'),
-            backgroundColor: Colors.green,
+            backgroundColor: Theme.of(context).colorScheme.primary,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -487,7 +487,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error sharing: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -497,44 +497,36 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Widget _buildActionButton(CodeAction action, String data, String category) {
     IconData iconData;
-    Color? buttonColor;
+    // Use theme primary color for all buttons to maintain consistency
+    final buttonColor = Theme.of(context).colorScheme.primary;
 
     switch (action.type) {
       case ActionType.open:
         iconData = Icons.open_in_browser;
-        buttonColor = Colors.blue;
         break;
       case ActionType.email:
         iconData = Icons.email;
-        buttonColor = Colors.red;
         break;
       case ActionType.call:
         iconData = Icons.call;
-        buttonColor = Colors.green;
         break;
       case ActionType.message:
         iconData = Icons.message;
-        buttonColor = Colors.orange;
         break;
       case ActionType.pay:
         iconData = Icons.payment;
-        buttonColor = Colors.purple;
         break;
       case ActionType.connect:
         iconData = Icons.wifi;
-        buttonColor = Colors.indigo;
         break;
       case ActionType.save:
         iconData = Icons.save;
-        buttonColor = Colors.teal;
         break;
       case ActionType.share:
         iconData = Icons.share;
-        buttonColor = Colors.blueGrey;
         break;
       case ActionType.copy:
         iconData = Icons.copy;
-        buttonColor = Theme.of(context).colorScheme.primary;
         break;
     }
 
@@ -573,7 +565,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                       : 'Failed to ${action.label.toLowerCase()}. Please try again.',
                 ),
                 backgroundColor: success
-                    ? Colors.green
+                    ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.error,
                 duration: const Duration(seconds: 3),
               ),
@@ -923,9 +915,9 @@ class _ScannerScreenState extends State<ScannerScreen>
             } else {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No code found in image'),
-                    backgroundColor: Colors.red,
+                  SnackBar(
+                    content: const Text('No code found in image'),
+                    backgroundColor: Theme.of(context).colorScheme.error,
                   ),
                 );
               }
@@ -933,9 +925,9 @@ class _ScannerScreenState extends State<ScannerScreen>
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('No code found in image'),
-                  backgroundColor: Colors.red,
+                SnackBar(
+                  content: const Text('No code found in image'),
+                  backgroundColor: Theme.of(context).colorScheme.error,
                 ),
               );
             }
@@ -949,7 +941,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Error scanning image: $e'),
-                backgroundColor: Colors.red,
+                backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );
           }
@@ -960,7 +952,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error picking image: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }

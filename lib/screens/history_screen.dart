@@ -169,10 +169,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: item.iconColor.withOpacity(0.1),
+                      color: item.getIconColor(context).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(item.icon, color: item.iconColor, size: 24),
+                    child: Icon(item.icon, color: item.getIconColor(context), size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -288,40 +288,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildSmartActionButton(CodeAction action, HistoryItem item) {
     IconData iconData;
-    Color buttonColor;
+    // Use theme primary color for all buttons to maintain consistency
+    final buttonColor = Theme.of(context).colorScheme.primary;
 
     switch (action.type) {
       case ActionType.open:
         iconData = Icons.open_in_browser;
-        buttonColor = Colors.blue;
         break;
       case ActionType.email:
         iconData = Icons.email;
-        buttonColor = Colors.red;
         break;
       case ActionType.call:
         iconData = Icons.call;
-        buttonColor = Colors.green;
         break;
       case ActionType.message:
         iconData = Icons.message;
-        buttonColor = Colors.orange;
         break;
       case ActionType.pay:
         iconData = Icons.payment;
-        buttonColor = Colors.purple;
         break;
       case ActionType.connect:
         iconData = Icons.wifi;
-        buttonColor = Colors.indigo;
         break;
       case ActionType.copy:
         iconData = Icons.copy;
-        buttonColor = Theme.of(context).colorScheme.primary;
         break;
       default:
         iconData = Icons.more_horiz;
-        buttonColor = Colors.grey;
     }
 
     return ElevatedButton.icon(
@@ -358,7 +351,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       : 'Failed to ${action.label.toLowerCase()}. Please check if the app is installed or try again.',
                 ),
                 backgroundColor: success
-                    ? Colors.green
+                    ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.error,
                 duration: const Duration(seconds: 3),
               ),
@@ -591,12 +584,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: item.iconColor.withOpacity(0.1),
+                color: item.getIconColor(context).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 item.icon,
-                color: item.iconColor,
+                color: item.getIconColor(context),
               ),
             ),
             const SizedBox(width: 16),
