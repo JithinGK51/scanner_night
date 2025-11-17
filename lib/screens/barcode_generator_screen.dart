@@ -245,24 +245,28 @@ class _BarcodeGeneratorScreenState extends State<BarcodeGeneratorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? Colors.grey.shade900 : const Color(0xFFF5F5F5);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Barcode Generator',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: textColor,
           ),
         ),
         centerTitle: true,
         actions: [
           if (_generatedData != null)
             IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.black87),
+              icon: Icon(Icons.refresh, color: textColor),
               onPressed: () {
                 setState(() {
                   _generatedData = null;

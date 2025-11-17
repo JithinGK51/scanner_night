@@ -3,6 +3,7 @@ import '../services/settings_service.dart';
 import '../services/theme_service.dart';
 import '../services/backup_service.dart';
 import '../services/history_service.dart';
+import '../utils/theme_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'about_screen.dart';
@@ -11,16 +12,7 @@ import 'how_to_scan_screen.dart';
 import 'privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final Function(String)? updateThemeCallback;
-  final Function(String)? updateColorThemeCallback;
-  final AppTheme currentTheme;
-  
-  const SettingsScreen({
-    super.key,
-    this.updateThemeCallback,
-    this.updateColorThemeCallback,
-    required this.currentTheme,
-  });
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -121,8 +113,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _themeMode = value;
     });
-    if (widget.updateThemeCallback != null) {
-      widget.updateThemeCallback!(value);
+    // Update theme through ThemeProvider
+    final themeProvider = ThemeProvider.of(context);
+    if (themeProvider != null) {
+      themeProvider.updateThemeMode(value);
     }
   }
 
@@ -131,8 +125,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _colorTheme = value;
     });
-    if (widget.updateColorThemeCallback != null) {
-      widget.updateColorThemeCallback!(value);
+    // Update theme through ThemeProvider
+    final themeProvider = ThemeProvider.of(context);
+    if (themeProvider != null) {
+      themeProvider.updateColorTheme(value);
     }
   }
 
@@ -1084,7 +1080,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: widget.currentTheme.primaryColor,
+                color: ThemeProvider.of(context)?.currentTheme.primaryColor ?? Theme.of(context).colorScheme.primary,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
@@ -1303,7 +1299,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: isSelected,
             onChanged: onChanged,
-            activeColor: widget.currentTheme.primaryColor,
+            activeColor: ThemeProvider.of(context)?.currentTheme.primaryColor ?? Theme.of(context).colorScheme.primary,
           ),
         ],
       ),

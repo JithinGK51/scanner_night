@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'dart:async';
 import '../main.dart';
-import '../services/theme_service.dart';
+import '../utils/theme_provider.dart';
 import 'guide_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -69,22 +69,43 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           );
         } else {
-          Navigator.of(context).pushReplacement(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => MainScreen(
-                updateThemeCallback: null,
-                updateColorThemeCallback: null,
-                currentTheme: ThemeService.defaultTheme,
+          // Get ThemeProvider from context before navigation
+          final themeProvider = ThemeProvider.of(context);
+          if (themeProvider != null) {
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => ThemeProvider(
+                  currentTheme: themeProvider.currentTheme,
+                  themeMode: themeProvider.themeMode,
+                  colorTheme: themeProvider.colorTheme,
+                  updateThemeMode: themeProvider.updateThemeMode,
+                  updateColorTheme: themeProvider.updateColorTheme,
+                  child: const MainScreen(),
+                ),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 500),
               ),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              transitionDuration: const Duration(milliseconds: 500),
-            ),
-          );
+            );
+          } else {
+            // Fallback if ThemeProvider is not available
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => const MainScreen(),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 500),
+              ),
+            );
+          }
         }
       }
     });

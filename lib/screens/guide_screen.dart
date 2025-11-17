@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:introduction_screen/introduction_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/theme_service.dart';
+import '../utils/theme_provider.dart';
 import '../main.dart';
 
 class GuideScreen extends StatelessWidget {
@@ -84,16 +85,28 @@ class GuideScreen extends StatelessWidget {
       onDone: () async {
         await GuideScreen.completeIntro();
         if (context.mounted) {
-          // Navigate to main screen
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => MainScreen(
-                updateThemeCallback: null,
-                updateColorThemeCallback: null,
-                currentTheme: ThemeService.defaultTheme,
+          // Get ThemeProvider from context before navigation
+          final themeProvider = ThemeProvider.of(context);
+          if (themeProvider != null) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => ThemeProvider(
+                  currentTheme: themeProvider.currentTheme,
+                  themeMode: themeProvider.themeMode,
+                  colorTheme: themeProvider.colorTheme,
+                  updateThemeMode: themeProvider.updateThemeMode,
+                  updateColorTheme: themeProvider.updateColorTheme,
+                  child: const MainScreen(),
+                ),
               ),
-            ),
-          );
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const MainScreen(),
+              ),
+            );
+          }
         }
       },
       showSkipButton: true,

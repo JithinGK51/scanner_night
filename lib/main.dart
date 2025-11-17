@@ -10,6 +10,7 @@ import 'screens/splash_screen.dart';
 import 'screens/guide_screen.dart';
 import 'services/settings_service.dart';
 import 'services/theme_service.dart';
+import 'utils/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -99,22 +100,20 @@ class _MyAppState extends State<MyApp> {
         primaryColor: _currentTheme.primaryColor,
       ),
       themeMode: _themeModeEnum,
-      home: const SplashScreen(),
+      home: ThemeProvider(
+        currentTheme: _currentTheme,
+        themeMode: _themeMode,
+        colorTheme: _colorTheme,
+        updateThemeMode: updateTheme,
+        updateColorTheme: updateColorTheme,
+        child: const SplashScreen(),
+      ),
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
-  final Function(String)? updateThemeCallback;
-  final Function(String)? updateColorThemeCallback;
-  final AppTheme currentTheme;
-  
-  const MainScreen({
-    super.key,
-    this.updateThemeCallback,
-    this.updateColorThemeCallback,
-    required this.currentTheme,
-  });
+  const MainScreen({super.key});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -123,35 +122,43 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  List<Widget> get _screens => [
-    const ScannerScreen(),
-    const QRGeneratorScreen(),
-    const HistoryScreen(),
-    const BarcodeGeneratorScreen(),
-    SettingsScreen(
-      updateThemeCallback: widget.updateThemeCallback,
-      updateColorThemeCallback: widget.updateColorThemeCallback,
-      currentTheme: widget.currentTheme,
-    ),
-  ];
+  List<Widget> _buildScreens(BuildContext context) {
+    // Don't use const so screens can rebuild when theme changes
+    return [
+      ScannerScreen(),
+      QRGeneratorScreen(),
+      HistoryScreen(),
+      BarcodeGeneratorScreen(),
+      SettingsScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = ThemeProvider.of(context);
+    // Use theme as key to force rebuild when theme changes
+    final themeKey = themeProvider != null 
+        ? '${themeProvider.colorTheme}_${themeProvider.themeMode}'
+        : 'default';
+    
+    final screens = _buildScreens(context);
     return Scaffold(
       body: IndexedStack(
+        key: ValueKey(themeKey),
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(context, screens),
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(BuildContext context, List<Widget> screens) {
+    final themeProvider = ThemeProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = themeProvider?.currentTheme.primaryColor ?? Theme.of(context).colorScheme.primary;
+    final backgroundColor = isDark ? Colors.grey.shade900 : Colors.white;
+    
     try {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final primaryColor = widget.currentTheme.primaryColor;
-      final backgroundColor = isDark ? Colors.grey.shade900 : Colors.white;
-      
       return ConvexAppBar(
         style: TabStyle.reactCircle,
         items: const [
@@ -163,7 +170,7 @@ class _MainScreenState extends State<MainScreen> {
         ],
         initialActiveIndex: _currentIndex,
         onTap: (int index) {
-          if (mounted && index >= 0 && index < _screens.length) {
+          if (mounted && index >= 0 && index < screens.length) {
             setState(() {
               _currentIndex = index;
             });
@@ -183,14 +190,14 @@ class _MainScreenState extends State<MainScreen> {
       return BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (int index) {
-          if (mounted && index >= 0 && index < _screens.length) {
+          if (mounted && index >= 0 && index < screens.length) {
             setState(() {
               _currentIndex = index;
             });
           }
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: widget.currentTheme.primaryColor,
+        selectedItemColor: primaryColor,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.qr_code_scanner),
