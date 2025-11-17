@@ -1,6 +1,7 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'app_detection_service.dart';
 
 /// Service for detecting code types and providing smart actions
 class CodeActionService {
@@ -32,15 +33,29 @@ class CodeActionService {
   /// Check if code is a payment code (UPI, PayPal, etc.)
   static bool _isPaymentCode(String data) {
     final lowerData = data.toLowerCase();
-    return lowerData.contains('upi://') ||
-        lowerData.contains('paytm://') ||
+    
+    // Check for UPI codes (most common in India)
+    final isUPI = lowerData.contains('upi://') ||
+        lowerData.contains('upi') ||
+        (RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(data) &&
+         (lowerData.contains('pay') || lowerData.contains('upi') || 
+          lowerData.contains('@paytm') || lowerData.contains('@phonepe') ||
+          lowerData.contains('@ybl') || lowerData.contains('@axl') ||
+          lowerData.contains('@okicici') || lowerData.contains('@okaxis')));
+    
+    // Check for other payment schemes
+    final isOtherPayment = lowerData.contains('paytm://') ||
         lowerData.contains('phonepe://') ||
         lowerData.contains('gpay://') ||
         lowerData.contains('paypal.me/') ||
         lowerData.contains('venmo.com/') ||
-        lowerData.startsWith('upi://') ||
-        RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(data) &&
-            (lowerData.contains('pay') || lowerData.contains('upi'));
+        lowerData.contains('razorpay://') ||
+        lowerData.contains('amazonpay://') ||
+        lowerData.contains('mobikwik://') ||
+        lowerData.contains('freecharge://') ||
+        lowerData.contains('bhim://');
+    
+    return isUPI || isOtherPayment;
   }
 
   /// Check if code is a contact card (vCard format)
@@ -62,8 +77,13 @@ class CodeActionService {
   }
 
   /// Get available actions for a code type
-  static List<CodeAction> getAvailableActions(String data, String category) {
-    final actions = <CodeAction>[];
+  static Future<List<CodeAction>> getAvailableActions(String data, String category) async {
+    return await getActions(category, data);
+  }
+
+  /// Get actions for a specific category
+  static Future<List<CodeAction>> getActions(String category, String data) async {
+    final List<CodeAction> actions = [];
 
     switch (category) {
       case 'URL':
@@ -109,6 +129,7 @@ class CodeActionService {
         break;
 
       case 'Payment':
+        // Show single "Pay" button - will show payment apps dialog on click
         actions.add(CodeAction(
           type: ActionType.pay,
           label: 'Pay',
@@ -188,7 +209,7 @@ class CodeActionService {
           result = await _sendMessage(data);
           break;
         case ActionType.pay:
-          result = await _openPayment(data);
+          result = await _openPayment(data, action.packageName, action.scheme);
           break;
         case ActionType.connect:
           result = await _connectWiFi(data);
@@ -370,12 +391,57 @@ class CodeActionService {
     return false;
   }
 
-  static Future<bool> _openPayment(String paymentData) async {
-    final uri = Uri.parse(paymentData);
-    if (await canLaunchUrl(uri)) {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+  static Future<bool> _openPayment(String paymentData, String? packageName, String? scheme) async {
+    try {
+      String paymentUrl = paymentData;
+      
+      // If we have a specific app package and scheme, try to use it
+      if (packageName != null && scheme != null && scheme.isNotEmpty) {
+        // For UPI codes, try to construct app-specific URL
+        if (paymentData.contains('@') || paymentData.contains('upi://') || paymentData.contains('upi')) {
+          // UPI ID format (e.g., merchant@paytm)
+          if (paymentData.contains('@') && !paymentData.startsWith('upi://')) {
+            // Try app-specific UPI scheme
+            paymentUrl = 'upi://pay?pa=$paymentData&pn=Merchant&mc=0000';
+          } else if (paymentData.startsWith('upi://')) {
+            // Already in UPI format, use as is
+            paymentUrl = paymentData;
+          } else {
+            // Try with app scheme
+            paymentUrl = '$scheme$paymentData';
+          }
+        } else {
+          // For other payment schemes, use the app's scheme
+          paymentUrl = '$scheme$paymentData';
+        }
+      }
+      
+      // Try to launch the payment URL
+      final uri = Uri.parse(paymentUrl);
+      if (await canLaunchUrl(uri)) {
+        final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (launched) return true;
+      }
+      
+      // Fallback: try original payment data as UPI
+      if (paymentData.contains('@') || paymentData.contains('upi')) {
+        final upiUri = Uri.parse('upi://pay?pa=$paymentData&pn=Merchant&mc=0000');
+        if (await canLaunchUrl(upiUri)) {
+          return await launchUrl(upiUri, mode: LaunchMode.externalApplication);
+        }
+      }
+      
+      // Last fallback: try original payment data
+      final fallbackUri = Uri.parse(paymentData);
+      if (await canLaunchUrl(fallbackUri)) {
+        return await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Error opening payment app: $e');
+      return false;
     }
-    return false;
   }
 
   static Future<bool> _connectWiFi(String wifiData) async {
@@ -416,11 +482,15 @@ class CodeAction {
   final ActionType type;
   final String label;
   final String icon;
+  final String? packageName;
+  final String? scheme;
 
   CodeAction({
     required this.type,
     required this.label,
     required this.icon,
+    this.packageName,
+    this.scheme,
   });
 }
 

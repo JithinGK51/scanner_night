@@ -246,33 +246,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildSmartActionButtons(HistoryItem item) {
     final category = CodeActionService.detectCategory(item.data);
-    final actions = CodeActionService.getAvailableActions(item.data, category);
     
-    // Filter out copy, share, and save actions for the main buttons
-    final smartActions = actions.where((action) => 
-      action.type != ActionType.copy && 
-      action.type != ActionType.share &&
-      action.type != ActionType.save
-    ).toList();
-    
-    // Always include copy
-    smartActions.add(CodeAction(
-      type: ActionType.copy,
-      label: 'Copy',
-      icon: 'content_copy',
-    ));
+    return FutureBuilder<List<CodeAction>>(
+      future: CodeActionService.getAvailableActions(item.data, category),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        
+        final actions = snapshot.data!;
+        
+        // Filter out copy, share, and save actions for the main buttons
+        final smartActions = actions.where((action) => 
+          action.type != ActionType.copy && 
+          action.type != ActionType.share &&
+          action.type != ActionType.save
+        ).toList();
+        
+        // Always include copy
+        smartActions.add(CodeAction(
+          type: ActionType.copy,
+          label: 'Copy',
+          icon: 'content_copy',
+        ));
 
-    if (smartActions.isEmpty) {
-      return const SizedBox.shrink();
-    }
+        if (smartActions.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      children: smartActions.map((action) {
-        return _buildSmartActionButton(action, item);
-      }).toList(),
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: smartActions.map((action) {
+            return _buildSmartActionButton(action, item);
+          }).toList(),
+        );
+      },
     );
   }
 
