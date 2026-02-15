@@ -2,8 +2,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../models/history_item.dart';
 import '../services/history_service.dart';
+import '../services/settings_service.dart';
+import '../services/code_action_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -14,12 +18,10 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen>
     with SingleTickerProviderStateMixin {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-  );
-  
   final HistoryService _historyService = HistoryService();
+  final SettingsService _settingsService = SettingsService();
+  MobileScannerController? _controller;
+  
   bool _flashOn = false;
   bool _isFrontCamera = false;
   bool _isScanning = false;
@@ -28,11 +30,39 @@ class _ScannerScreenState extends State<ScannerScreen>
   AnimationController? _animationController;
   Animation<double>? _pulseAnimation;
   Animation<double>? _scaleAnimation;
+  
+  bool _continuousScan = false;
+  bool _beepOnScan = true;
+  bool _vibrateOnScan = true;
+  bool _autoCopy = false;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final useFrontCamera = await _settingsService.getUseFrontCamera();
+    final continuousScan = await _settingsService.getContinuousScan();
+    final beepOnScan = await _settingsService.getBeepOnScan();
+    final vibrateOnScan = await _settingsService.getVibrateOnScan();
+    final autoCopy = await _settingsService.getAutoCopy();
+
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: useFrontCamera ? CameraFacing.front : CameraFacing.back,
+      autoStart: true,
+    );
+
+    setState(() {
+      _isFrontCamera = useFrontCamera;
+      _continuousScan = continuousScan;
+      _beepOnScan = beepOnScan;
+      _vibrateOnScan = vibrateOnScan;
+      _autoCopy = autoCopy;
+    });
   }
 
   void _initializeAnimations() {
@@ -59,21 +89,29 @@ class _ScannerScreenState extends State<ScannerScreen>
   @override
   void dispose() {
     _animationController?.dispose();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   Future<void> _handleBarcode(BarcodeCapture capture) async {
-    if (_isProcessing) return;
-
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
 
     final barcode = barcodes.first;
     if (barcode.rawValue == null) return;
 
-    // Prevent duplicate scans
-    if (_lastScannedCode == barcode.rawValue) return;
+    // Prevent duplicate scans if not continuous (only block if same code within 2 seconds)
+    if (!_continuousScan) {
+      if (_lastScannedCode == barcode.rawValue && _isProcessing) {
+        return; // Still processing the same code
+      }
+    }
+    
+    // Mark as processing to prevent duplicate handling
+    if (_isProcessing && !_continuousScan) {
+      return;
+    }
+    
     _lastScannedCode = barcode.rawValue;
 
     setState(() {
@@ -81,8 +119,20 @@ class _ScannerScreenState extends State<ScannerScreen>
       _isScanning = true;
     });
 
-    // Vibrate on scan
-    HapticFeedback.mediumImpact();
+    // Vibrate on scan (if enabled)
+    if (_vibrateOnScan) {
+      HapticFeedback.mediumImpact();
+    }
+
+    // Beep on scan (if enabled) - using system sound
+    if (_beepOnScan) {
+      SystemSound.play(SystemSoundType.alert);
+    }
+
+    // Auto copy to clipboard (if enabled)
+    if (_autoCopy) {
+      await Clipboard.setData(ClipboardData(text: barcode.rawValue!));
+    }
 
     // Trigger success animation
     _animationController?.forward(from: 0.0);
@@ -102,43 +152,51 @@ class _ScannerScreenState extends State<ScannerScreen>
       _showScanResult(barcode.rawValue!);
     }
 
-    // Reset after delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _isScanning = false;
-        });
-      }
-    });
-  }
-
-  String _detectCategory(String data) {
-    if (data.startsWith('http://') || data.startsWith('https://')) {
-      return 'URL';
-    } else if (data.startsWith('mailto:')) {
-      return 'Email';
-    } else if (data.startsWith('tel:')) {
-      return 'Phone';
-    } else if (data.startsWith('sms:')) {
-      return 'SMS';
-    } else if (data.startsWith('WIFI:')) {
-      return 'WiFi';
+    // Reset after delay (only if not continuous scan)
+    // Allow auto-detection to work by resetting processing state faster
+    if (!_continuousScan) {
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _isScanning = false;
+            _lastScannedCode = null; // Allow rescanning after delay
+          });
+        }
+      });
     } else {
-      return 'Text';
+      // For continuous scan, reset immediately
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _isScanning = false;
+          });
+        }
+      });
     }
   }
 
+  String _detectCategory(String data) {
+    return CodeActionService.detectCategory(data);
+  }
+
   void _showScanResult(String data) {
+    final category = CodeActionService.detectCategory(data);
+    final actions = CodeActionService.getAvailableActions(data, category);
+    final displayTitle = CodeActionService.getDisplayTitle(data, category);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade900
+              : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -146,15 +204,32 @@ class _ScannerScreenState extends State<ScannerScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                Icon(
+                  Icons.check_circle,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Scan Successful!',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Scan Successful!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (category != 'Text')
+                        Text(
+                          category,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -167,51 +242,136 @@ class _ScannerScreenState extends State<ScannerScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey.shade800
+                    : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: SelectableText(
-                data,
-                style: const TextStyle(fontSize: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (displayTitle != data)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        displayTitle,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  SelectableText(
+                    data,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: data));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Copied to clipboard'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.close),
-                  label: const Text('Close'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+            // Smart action buttons
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: actions.map((action) {
+                return _buildActionButton(action, data);
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            // Close button
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(CodeAction action, String data) {
+    IconData iconData;
+    Color? buttonColor;
+
+    switch (action.type) {
+      case ActionType.open:
+        iconData = Icons.open_in_browser;
+        buttonColor = Colors.blue;
+        break;
+      case ActionType.email:
+        iconData = Icons.email;
+        buttonColor = Colors.red;
+        break;
+      case ActionType.call:
+        iconData = Icons.call;
+        buttonColor = Colors.green;
+        break;
+      case ActionType.message:
+        iconData = Icons.message;
+        buttonColor = Colors.orange;
+        break;
+      case ActionType.pay:
+        iconData = Icons.payment;
+        buttonColor = Colors.purple;
+        break;
+      case ActionType.connect:
+        iconData = Icons.wifi;
+        buttonColor = Colors.indigo;
+        break;
+      case ActionType.save:
+        iconData = Icons.save;
+        buttonColor = Colors.teal;
+        break;
+      case ActionType.share:
+        iconData = Icons.share;
+        buttonColor = Colors.blueGrey;
+        break;
+      case ActionType.copy:
+        iconData = Icons.copy;
+        buttonColor = Theme.of(context).colorScheme.primary;
+        break;
+    }
+
+    return ElevatedButton.icon(
+      onPressed: () async {
+        if (action.type == ActionType.share) {
+          // Share functionality
+          Navigator.pop(context);
+          // Share will be handled by the UI
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Share functionality coming soon'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        } else {
+          final success = await CodeActionService.executeAction(action, data);
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  success
+                      ? '${action.label} executed successfully'
+                      : 'Failed to ${action.label.toLowerCase()}',
+                ),
+                backgroundColor: success
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+        }
+      },
+      icon: Icon(iconData, size: 18),
+      label: Text(action.label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
     );
   }
@@ -228,13 +388,15 @@ class _ScannerScreenState extends State<ScannerScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Full screen camera preview
-          SizedBox.expand(
-            child: MobileScanner(
-              controller: _controller,
-              onDetect: _handleBarcode,
-            ),
-          ),
+                  // Full screen camera preview
+                  _controller != null
+                      ? SizedBox.expand(
+                          child: MobileScanner(
+                            controller: _controller!,
+                            onDetect: _handleBarcode,
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
           // Dark overlay with hole for scanning frame - full screen
           SizedBox.expand(
             child: CustomPaint(
@@ -255,7 +417,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               height: scanningFrameSize,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: _isScanning ? Colors.green : Colors.grey.shade300,
+                  color: _isScanning ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
                   width: _isScanning ? 3 : 2,
                 ),
                 borderRadius: BorderRadius.circular(20),
@@ -280,11 +442,11 @@ class _ScannerScreenState extends State<ScannerScreen>
                                     width: _isScanning ? 16 : 8,
                                     height: _isScanning ? 16 : 8,
                                     decoration: BoxDecoration(
-                                      color: _isScanning ? Colors.green : Colors.blue,
+                                      color: _isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary,
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: (_isScanning ? Colors.green : Colors.blue)
+                                          color: (_isScanning ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary)
                                               .withOpacity(0.6),
                                           blurRadius: _isScanning ? 20 : 10,
                                           spreadRadius: _isScanning ? 5 : 2,
@@ -298,8 +460,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                           : Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.blue,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.secondary,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -323,16 +485,17 @@ class _ScannerScreenState extends State<ScannerScreen>
                     icon: _flashOn ? Icons.flash_on : Icons.flash_off,
                     onTap: () {
                       setState(() => _flashOn = !_flashOn);
-                      _controller.toggleTorch();
+                      _controller?.toggleTorch();
                     },
                   ),
-                  _buildTopControlButton(
-                    icon: Icons.cameraswitch,
-                    onTap: () {
-                      setState(() => _isFrontCamera = !_isFrontCamera);
-                      _controller.switchCamera();
-                    },
-                  ),
+                          _buildTopControlButton(
+                            icon: Icons.cameraswitch,
+                            onTap: () async {
+                              setState(() => _isFrontCamera = !_isFrontCamera);
+                              _controller?.switchCamera();
+                              await _settingsService.setUseFrontCamera(_isFrontCamera);
+                            },
+                          ),
                 ],
               ),
             ),
@@ -360,7 +523,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               Colors.black,
               () {
                 setState(() => _flashOn = !_flashOn);
-                _controller.toggleTorch();
+                _controller?.toggleTorch();
               },
             ),
           ),
@@ -379,22 +542,11 @@ class _ScannerScreenState extends State<ScannerScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildBottomButton(
-                        Icons.keyboard,
-                        Colors.black.withOpacity(0.7),
-                        Colors.white,
-                        () => _showManualInputDialog(),
-                      ),
-                      _buildBottomButton(
                         Icons.image,
                         Colors.black.withOpacity(0.7),
                         Colors.white,
                         () {
-                          // Pick image from gallery
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Image picker coming soon'),
-                            ),
-                          );
+                          _pickImageFromGallery();
                         },
                       ),
                     ],
@@ -456,6 +608,106 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
   }
 
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (image == null) return;
+
+      // Show loading indicator
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      // Use mobile_scanner to scan the image
+      if (_controller != null) {
+        try {
+          final file = File(image.path);
+          final result = await _controller!.analyzeImage(file.path);
+          
+          // Close loading dialog
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          
+          if (result != null && result.barcodes.isNotEmpty) {
+            final barcode = result.barcodes.first;
+            if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+              await _processScannedCode(barcode.rawValue!);
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No code found in image'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No code found in image'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          // Close loading dialog if still open
+          if (mounted) {
+            Navigator.pop(context);
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error scanning image: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _processScannedCode(String data) async {
+    // Add to history
+    final historyItem = HistoryItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      data: data,
+      type: 'Scanned',
+      category: _detectCategory(data),
+      timestamp: DateTime.now(),
+    );
+    await _historyService.addHistoryItem(historyItem);
+
+    // Show result dialog
+    if (mounted) {
+      _showScanResult(data);
+    }
+  }
+
   Widget _buildTopControlButton({required IconData icon, required VoidCallback onTap}) {
     return Container(
       width: 48,
@@ -501,38 +753,15 @@ class _ScannerScreenState extends State<ScannerScreen>
       width: 72,
       height: 72,
       decoration: BoxDecoration(
-        color: Colors.blue,
+        color: Theme.of(context).colorScheme.primary,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
             blurRadius: 20,
             spreadRadius: 5,
           ),
         ],
-      ),
-      child: Center(
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.lightBlue.shade300,
-              width: 3,
-            ),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF87CEEB)),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

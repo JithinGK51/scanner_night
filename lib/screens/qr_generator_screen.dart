@@ -86,9 +86,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   void _generateQRCode() async {
     if (_inputController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter data to generate QR code'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Please enter data to generate QR code'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -125,10 +125,10 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     await Clipboard.setData(ClipboardData(text: _generatedData!));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copied to clipboard'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: const Text('Copied to clipboard'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -223,7 +223,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               return ListTile(
                 leading: Icon(
                   _getTypeIcon(type),
-                  color: _selectedType == type ? Colors.blue : Colors.grey,
+                  color: _selectedType == type ? Theme.of(context).colorScheme.primary : Colors.grey,
                 ),
                 title: Text(
                   type,
@@ -231,7 +231,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     fontWeight: _selectedType == type
                         ? FontWeight.bold
                         : FontWeight.normal,
-                    color: _selectedType == type ? Colors.blue : Colors.black87,
+                    color: _selectedType == type ? Theme.of(context).colorScheme.primary : Colors.black87,
                   ),
                 ),
                 onTap: () {
@@ -434,7 +434,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
             ElevatedButton(
               onPressed: _isGenerating ? null : _generateQRCode,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -510,19 +510,19 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                           icon: Icons.copy,
                           label: 'Copy',
                           onTap: _copyToClipboard,
-                          color: Colors.blue,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         _buildActionButton(
                           icon: Icons.save_alt,
                           label: 'Save',
                           onTap: _saveQRCode,
-                          color: Colors.green,
+                          color: const Color(0xFF4CAF50),
                         ),
                         _buildActionButton(
                           icon: Icons.share,
                           label: 'Share',
                           onTap: _shareQRCode,
-                          color: Colors.orange,
+                          color: Theme.of(context).colorScheme.tertiary,
                         ),
                       ],
                     ),
